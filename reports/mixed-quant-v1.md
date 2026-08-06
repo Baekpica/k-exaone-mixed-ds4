@@ -118,6 +118,21 @@ The chat template exposes `enable_thinking`; passing it `false` emits a closed
 Recorded because the mistake is cheap to repeat: **on a reasoning model, a
 format-compliance metric measured under a token cap measures the cap.**
 
+## Shard verification
+
+Both artifacts exceed the Hub's 50 GB per-file limit, so each is published as
+three shards. Loading the **first shard alone** binds all three and generates
+correctly:
+
+```
+llama-server -m ...-v1-00001-of-00003.gguf -ngl 99 -c 4096
+-> "일본의 수도는 도쿄입니다."   finish_reason=stop
+```
+
+Resident weights came to 89,974 MiB across the four GPUs, matching the
+85.56 GiB artifact plus context — every shard was found and bound, not just the
+first.
+
 ## Not measured
 
 - No Q4_K_M or BF16 baseline comparison yet. The Q8_0 greedy reference is being
