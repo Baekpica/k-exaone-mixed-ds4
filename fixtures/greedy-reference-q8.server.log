@@ -1,0 +1,23 @@
+0.00.318.264 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)
+0.01.039.120 W srv  llama_server: -----------------
+0.01.039.124 W srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+0.01.039.125 W srv  llama_server: this can be a security risk (cross-origin attacks)
+0.01.039.125 W srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+0.01.039.125 W srv  llama_server: -----------------
+0.01.041.937 I srv    load_model: loading model '/workspace/models/K-EXAONE-236B-A23B-GGUF/K-EXAONE-236B-A23B-Q8_0.gguf'
+0.21.987.025 W load: special_eos_id is not in special_eog_ids - the tokenizer config may be incorrect
+0.22.032.943 W model has unused tensor blk.48.attn_q.weight (size = 53477376 bytes) -- ignoring
+0.22.032.956 W model has unused tensor blk.48.attn_k.weight (size = 6684672 bytes) -- ignoring
+0.22.032.970 W model has unused tensor blk.48.attn_v.weight (size = 6684672 bytes) -- ignoring
+0.22.032.996 W model has unused tensor blk.48.attn_output.weight (size = 53477376 bytes) -- ignoring
+0.22.033.002 W model has unused tensor blk.48.attn_norm.weight (size = 24576 bytes) -- ignoring
+0.22.033.006 W model has unused tensor blk.48.attn_q_norm.weight (size = 512 bytes) -- ignoring
+0.22.033.010 W model has unused tensor blk.48.attn_k_norm.weight (size = 512 bytes) -- ignoring
+0.22.033.014 W model has unused tensor blk.48.ffn_norm.weight (size = 24576 bytes) -- ignoring
+0.22.033.019 W model has unused tensor blk.48.ffn_gate.weight (size = 120324096 bytes) -- ignoring
+0.22.033.022 W model has unused tensor blk.48.ffn_down.weight (size = 120324096 bytes) -- ignoring
+0.22.033.026 W model has unused tensor blk.48.ffn_up.weight (size = 120324096 bytes) -- ignoring
+0.22.033.032 W model has unused tensor blk.48.nextn.eh_proj.weight (size = 80216064 bytes) -- ignoring
+0.22.033.037 W model has unused tensor blk.48.nextn.enorm.weight (size = 24576 bytes) -- ignoring
+0.22.033.041 W model has unused tensor blk.48.nextn.hnorm.weight (size = 24576 bytes) -- ignoring
+0.22.033.046 W model has unused tensor blk.48.nextn.shared_head_norm.weight (size = 24576 bytes) -- ignoring

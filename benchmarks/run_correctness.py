@@ -92,8 +92,15 @@ def main():
     ap.add_argument("--port", type=int, default=18080)
     ap.add_argument("--ngl", type=int, default=99)
     ap.add_argument("--ctx", type=int, default=32768)
-    ap.add_argument("--max-tokens", type=int, default=384)
+    ap.add_argument("--max-tokens", type=int, default=768)
     ap.add_argument("--split-mode", default="layer")
+    ap.add_argument("--thinking", action="store_true",
+                    help="leave K-EXAONE's reasoning mode on. Off by default: with "
+                         "reasoning on the model routinely spends >1500 tokens in "
+                         "reasoning_content before content starts, so a bounded "
+                         "max_tokens truncates mid-thought and every format check "
+                         "scores zero for reasons that have nothing to do with quant "
+                         "quality. Reported separately when enabled.")
     a = ap.parse_args()
 
     fixtures = [json.loads(l) for l in open(a.fixtures, encoding="utf-8") if l.strip()]
@@ -111,7 +118,8 @@ def main():
                             preexec_fn=os.setsid)
     results = {"label": a.label, "model": a.model,
                "model_bytes": Path(a.model).stat().st_size,
-               "ctx": a.ctx, "max_tokens": a.max_tokens, "runs": []}
+               "ctx": a.ctx, "max_tokens": a.max_tokens,
+               "thinking": a.thinking, "runs": []}
     try:
         load_s = wait_ready(a.port)
         results["load_seconds"] = load_s
@@ -120,19 +128,26 @@ def main():
         for i, f in enumerate(fixtures, 1):
             t0 = time.time()
             try:
-                r = post(a.port, "/v1/chat/completions", {
+                payload = {
                     "messages": [{"role": "user", "content": f["prompt"]}],
                     "temperature": 0, "top_k": 1, "top_p": 1.0, "seed": 0,
                     "max_tokens": a.max_tokens, "stream": False,
-                })
+                }
+                if not a.thinking:
+                    payload["chat_template_kwargs"] = {"enable_thinking": False}
+                r = post(a.port, "/v1/chat/completions", payload)
                 dt = time.time() - t0
-                txt = r["choices"][0]["message"]["content"] or ""
+                msg = r["choices"][0]["message"]
+                txt = msg.get("content") or ""
+                reasoning = msg.get("reasoning_content") or ""
                 usage = r.get("usage", {})
                 tim = r.get("timings", {})
                 rec = {
                     "id": f["id"], "category": f["category"],
                     "output": txt,
                     "output_chars": len(txt),
+                    "reasoning_chars": len(reasoning),
+                    "thinking": a.thinking,
                     "prompt_tokens": usage.get("prompt_tokens"),
                     "completion_tokens": usage.get("completion_tokens"),
                     "wall_seconds": dt,
@@ -203,6 +218,8 @@ def main():
         print(f"  mean decode  {st.mean([r['decode_tps'] or 0 for r in ok]):.2f} tok/s")
         print(f"  mean jamo    {st.mean([r['jamo_ratio'] for r in ok]):.4f}")
         print(f"  mean rep3    {st.mean([r['repetition_3gram'] for r in ok]):.4f}")
+        trunc = [r for r in ok if r.get("finish_reason") == "length"]
+        print(f"  truncated    {len(trunc)}/{len(ok)} (finish_reason=length)")
         js = [r for r in ok if "json_parse_ok" in r]
         if js:
             print(f"  json ok      {sum(r['json_parse_ok'] for r in js)}/{len(js)}")
