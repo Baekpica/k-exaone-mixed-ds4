@@ -21,12 +21,19 @@ sys.path.insert(0, str(Path(__file__).parent))
 from build_mixed import emit_patterns  # noqa: E402
 
 
-def expected_type(name, pats, embd_t, out_t):
+def expected_type(name, pats, embd_t, out_t, ndims=2):
     """Mirror llama.cpp resolution order: never-quantize, then the dedicated
-    embedding/output params, then first-matching regex."""
+    embedding/output params, then first-matching regex.
+
+    The dimensionality test is not redundant with the name tests. K-EXAONE's
+    nextn.enorm/hnorm are 1-D but do not match "_norm.weight" (no underscore
+    before "norm"), so llama.cpp leaves them F32 via ggml_n_dims(t) < 2, not
+    via the name rule."""
+    if ndims < 2:
+        return None                      # left at source dtype
     if name.endswith("_norm.weight") or name.endswith("ffn_gate_inp.weight") \
             or not name.endswith("weight"):
-        return None                      # left at source dtype
+        return None
     if name == "token_embd.weight":
         return embd_t.upper()
     if name == "output.weight":
@@ -67,7 +74,7 @@ def main():
     for name, t in sorted(got.items()):
         tt = t.tensor_type.name.upper()
         by_type[tt] += 1
-        want = expected_type(name, pats, embd_t, out_t)
+        want = expected_type(name, pats, embd_t, out_t, ndims=len(t.shape))
         if want is None:
             unquantized.append((name, tt))
             if tt not in ("F32", "F16", "BF16"):

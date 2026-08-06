@@ -9,7 +9,7 @@ executed.
 
 | Deliverable | Destination |
 |---|---|
-| Mixed-quant GGUF artifacts | Hugging Face, **public**, under `Baekpica` |
+| Mixed-quant GGUF artifacts | `Baekpica/K-EXAONE-236B-A23B-Mixed-Quant-GGUF`, **public** |
 | ds4 K-EXAONE support | fork `Baekpica/ds4` (+ PR to `Entrpi/ds4` where it lands cleanly) |
 | DGX Spark handoff bundle | **private** HF bucket |
 

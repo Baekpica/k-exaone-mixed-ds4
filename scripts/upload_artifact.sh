@@ -34,7 +34,7 @@ cp reports/MODEL_CARD.md                        "$STAGE/README.md"
 cp fixtures/calibration.composition.json        "$STAGE/" 2>/dev/null || true
 
 echo "[repo] $REPO (public)"
-hf repo create "$REPO" --repo-type model --exist-ok >/dev/null
+hf repos create "$REPO" --repo-type model --exist-ok >/dev/null
 
 echo "[upload] provenance files"
 hf upload "$REPO" "$STAGE" . --repo-type model \

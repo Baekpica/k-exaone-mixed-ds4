@@ -94,9 +94,25 @@ the base model's embedding and LM head.
 llama-server -m K-EXAONE-236B-A23B-MXQ-*.gguf -ngl 99 -c 8192
 ```
 
-llama.cpp loads and runs these files but **ignores the MTP tensors** — they are
-preserved in the artifact, not executed. Speculative decoding through the MTP
-block is engine work, tracked in the converter repository.
+A mixed-quant GGUF needs no special runtime: GGUF stores a type per tensor and
+ggml dispatches per tensor, which is how `Q4_K_M` — itself a mixture of Q4_K,
+Q6_K and Q8_0 — already works. This recipe just assigns that mixture more
+aggressively, and `llama-quantize` is what produced the file.
+
+Measured, not assumed: the pilot artifact loaded in `llama-server` on 4 × RTX
+PRO 6000 in **10.2 s** and generated 384 tokens of Korean at **78.1 tok/s** with
+a broken-jamo ratio of **0.000**.
+
+Two real caveats:
+
+- llama.cpp **ignores the MTP tensors**. They are preserved in the artifact, not
+  executed. Speculative decoding through the MTP block is engine work.
+- **ds4 cannot serve this yet.** The K-EXAONE model family in
+  [`Baekpica/ds4`](https://github.com/Baekpica/ds4/tree/feature/exaone-model-loader)
+  currently has metadata validation and the tensor binder; the forward path is
+  not implemented. ds4 is an MLA-only engine and K-EXAONE is plain GQA, so that
+  attention path has to be written. Until then llama.cpp is the way to run these
+  files.
 
 ## Limitations
 

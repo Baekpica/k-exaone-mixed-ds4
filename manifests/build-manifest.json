@@ -1,7 +1,7 @@
 {
-  "generated_utc": "2026-08-06T14:23:11Z",
+  "generated_utc": "2026-08-06T15:10:04Z",
   "converter_repo": {
-    "commit": "cdf8c13cccb86d2342a839c1f42fb0a125684c66",
+    "commit": "6cc37aaaa7aae644b43441e38845deb5975a20f8",
     "url": "https://github.com/Baekpica/k-exaone-mixed-ds4"
   },
   "llama_cpp": {
@@ -18,7 +18,7 @@
   },
   "ds4": {
     "fork": "https://github.com/Baekpica/ds4",
-    "commit": "dfe076f9d76b5982ad16a0e67863a1fbcebe749e",
+    "commit": "84b210c5ad8c5399e9718573a4b1a5e213dfad2a",
     "upstream": "https://github.com/Entrpi/ds4",
     "upstream_base": "b0309611041655f4e45671cfd9c9886aff161406",
     "branch": "feature/exaone-model-loader"
