@@ -1,0 +1,21 @@
+{
+  "hf_model": {
+    "repo": "LGAI-EXAONE/K-EXAONE-236B-A23B",
+    "revision": "61e6d578eb102b578e5704e2916ac841df9eca0a",
+    "files": 109,
+    "bytes": 474281148160
+  },
+  "hf_gguf": {
+    "repo": "LGAI-EXAONE/K-EXAONE-236B-A23B-GGUF",
+    "revision": "5bd0394e4f42c00df63e207b9c434387523a6b77",
+    "file": "K-EXAONE-236B-A23B-BF16.gguf",
+    "bytes": 474281148160,
+    "sha256_official": "73be2da8653976df036bf9b6466b011f86cb10f78bab30a47025638ec999d3f8",
+    "sha256_verified_local": ""
+  },
+  "license": {
+    "name": "k-exaone",
+    "file": "LICENSE",
+    "redistribution": "sec 2.1 requires the agreement to travel with any derivative and the derivative name to begin with K-EXAONE; sec 2.2 requires a separate agreement with the Licensor for commercial distribution to third parties"
+  }
+}

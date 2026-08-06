@@ -23,6 +23,7 @@ dl() {  # dl <repo> <revision> <local-subdir> <include-pattern...>
 
 case "${1:-all}" in
   gguf-bf16)   dl LGAI-EXAONE/K-EXAONE-236B-A23B-GGUF "$HF_REV_GGUF" K-EXAONE-236B-A23B-GGUF '*BF16*' ;;
+  gguf-q8)     dl LGAI-EXAONE/K-EXAONE-236B-A23B-GGUF "$HF_REV_GGUF" K-EXAONE-236B-A23B-GGUF '*Q8_0*' ;;
   gguf-q4km)   dl LGAI-EXAONE/K-EXAONE-236B-A23B-GGUF "$HF_REV_GGUF" K-EXAONE-236B-A23B-GGUF '*Q4_K_M*' ;;
   safetensors) dl LGAI-EXAONE/K-EXAONE-236B-A23B      "$HF_REV_BF16" K-EXAONE-236B-A23B      '*.safetensors' ;;
   *) echo "usage: $0 {gguf-bf16|gguf-q4km|safetensors}"; exit 2 ;;

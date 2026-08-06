@@ -1,0 +1,36 @@
+{
+  "generated_utc": "2026-08-06T14:23:11Z",
+  "converter_repo": {
+    "commit": "cdf8c13cccb86d2342a839c1f42fb0a125684c66",
+    "url": "https://github.com/Baekpica/k-exaone-mixed-ds4"
+  },
+  "llama_cpp": {
+    "commit": "6a32c29a746a2e44de463de647f9f6661eb5086b",
+    "describe": "b10295-2-g6a32c29a7",
+    "url": "https://github.com/ggml-org/llama.cpp",
+    "build_dir": "build-sm120",
+    "cmake_flags": [
+      "-DGGML_CUDA=ON",
+      "-DCMAKE_CUDA_ARCHITECTURES=120",
+      "-DLLAMA_CURL=OFF",
+      "-DCMAKE_BUILD_TYPE=Release"
+    ]
+  },
+  "ds4": {
+    "fork": "https://github.com/Baekpica/ds4",
+    "commit": "dfe076f9d76b5982ad16a0e67863a1fbcebe749e",
+    "upstream": "https://github.com/Entrpi/ds4",
+    "upstream_base": "b0309611041655f4e45671cfd9c9886aff161406",
+    "branch": "feature/exaone-model-loader"
+  },
+  "toolchain": {
+    "nvcc": "Build cuda_13.0.r13.0/compiler.36424714_0",
+    "gcc": "gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+    "cmake": "cmake version 3.22.1",
+    "driver": "580.159.03"
+  },
+  "build_targets": {
+    "cuda-sm120": "RTX PRO 6000 development / microbenchmark (built here)",
+    "cuda-sm121": "DGX Spark release target (defined, not built on this host)"
+  }
+}
