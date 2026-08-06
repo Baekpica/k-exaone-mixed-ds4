@@ -6,3 +6,4 @@ logs/
 manifests/st-headers.json
 manifests/.llamacpp-sha
 benchmarks/results/*.raw
+fixtures/calibration.txt

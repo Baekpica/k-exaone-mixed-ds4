@@ -1,0 +1,116 @@
+{
+ "output": "/workspace/k-exaone-mixed-ds4/fixtures/calibration.txt",
+ "bytes": 20634088,
+ "documents": 3776,
+ "seed": 1234,
+ "buckets": [
+  {
+   "bucket": "ko",
+   "repo": "nvidia/Nemotron-SFT-Multilingual-v2",
+   "files": [
+    "ultra-v3_stem_ko_translated_postedit_final.jsonl",
+    "ultra-v3_math_ko_translated_final.jsonl",
+    "ultra-v3_code_ko_translated_final.jsonl"
+   ],
+   "chars": 1384653,
+   "docs": 784,
+   "status": "ok"
+  },
+  {
+   "bucket": "en_reasoning",
+   "repo": "nvidia/Nemotron-Cascade-SFT-Stage-1",
+   "files": [
+    "code/code_1.jsonl",
+    "code/code_2.jsonl",
+    "code/code_3.jsonl",
+    "code/code_4.jsonl"
+   ],
+   "chars": 2704622,
+   "docs": 243,
+   "status": "ok"
+  },
+  {
+   "bucket": "en_instruct",
+   "repo": "nvidia/Nemotron-SFT-Instruction-Following-Chat-v2",
+   "files": [
+    "data/reasoning_off.jsonl",
+    "data/reasoning_on.jsonl"
+   ],
+   "chars": 2018571,
+   "docs": 440,
+   "status": "ok"
+  },
+  {
+   "bucket": "ja",
+   "repo": "nvidia/Nemotron-SFT-Multilingual-v2",
+   "files": [
+    "ultra-v3_stem_ja_translated_postedit_final.jsonl",
+    "ultra-v3_math_ja_translated_final.jsonl"
+   ],
+   "chars": 700098,
+   "docs": 707,
+   "status": "ok"
+  },
+  {
+   "bucket": "es",
+   "repo": "nvidia/Nemotron-SFT-Multilingual-v1",
+   "files": [
+    "data/super-v3_stem_es_translated_postedit_final.jsonl",
+    "data/super-v3_math_es_translated_final.jsonl"
+   ],
+   "chars": 1013359,
+   "docs": 496,
+   "status": "ok"
+  },
+  {
+   "bucket": "de",
+   "repo": "nvidia/Nemotron-SFT-Multilingual-v1",
+   "files": [
+    "data/super-v3_stem_de_translated_postedit_final.jsonl",
+    "data/super-v3_math_de_translated_final.jsonl"
+   ],
+   "chars": 936534,
+   "docs": 392,
+   "status": "ok"
+  },
+  {
+   "bucket": "code_algo",
+   "repo": "nvidia/Nemotron-SFT-Competitive-Programming-v2",
+   "files": [
+    "data/competitive_programming_cpp_00.jsonl",
+    "data/competitive_programming_cpp_01.jsonl",
+    "data/competitive_programming_python_00.jsonl",
+    "data/competitive_programming_python_01.jsonl"
+   ],
+   "chars": 648814,
+   "docs": 122,
+   "status": "ok"
+  },
+  {
+   "bucket": "vi",
+   "repo": "wikimedia/wikipedia:vi",
+   "chars": 1175765,
+   "docs": 285,
+   "status": "ok"
+  },
+  {
+   "bucket": "en_prose",
+   "repo": "wikimedia/wikipedia:en",
+   "chars": 841066,
+   "docs": 307,
+   "status": "ok"
+  }
+ ],
+ "korean_boost": {
+  "docs": 2584,
+  "chars": 4760000,
+  "note": "second pass, 26 windows/file, seeds 9000+"
+ },
+ "final_char_mix": {
+  "hangul": 1650098,
+  "kana": 159891,
+  "han": 119378,
+  "latin": 7701766,
+  "vi_diacritics": 57953
+ }
+}
