@@ -62,8 +62,21 @@ def main():
         print(f"tensors seen: {list(raw)[:10]}", file=sys.stderr)
         sys.exit(1)
 
+    # top-k selection is without replacement, so a repeated expert index means
+    # the dump was elided (LLAMA_DEBUG_PRINT_N too small) and rows got stitched
+    # together -- a silently wrong fixture is worse than none.
+    bad = [il for il, L in layers.items()
+           if L.get("selected_experts")
+           and len(set(L["selected_experts"])) != len(L["selected_experts"])]
+    if bad:
+        print(f"ERROR: duplicate expert indices in layers {sorted(bad)[:8]}"
+              f"{'...' if len(bad) > 8 else ''} -- rerun with LLAMA_DEBUG_PRINT_N "
+              f">= {a.experts_used}", file=sys.stderr)
+        sys.exit(2)
+
     doc = {"prompt": a.prompt, "n_expert_used": a.experts_used,
-           "note": "first token only; values are for the first token position",
+           "note": "first token position of the last prompt-eval batch",
+           "validated": "expert indices distinct within each layer",
            "layers": {str(k): v for k, v in sorted(layers.items())}}
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     json.dump(doc, open(a.out, "w"), indent=1, ensure_ascii=False)

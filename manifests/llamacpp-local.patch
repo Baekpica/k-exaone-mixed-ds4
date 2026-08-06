@@ -1,0 +1,21 @@
+diff --git a/common/debug.cpp b/common/debug.cpp
+index 102c6924d..d1436cc5e 100644
+--- a/common/debug.cpp
++++ b/common/debug.cpp
+@@ -183,7 +183,15 @@ bool common_debug_cb_eval(struct ggml_tensor * t, bool ask, void * user_data) {
+ 
+     if (!ggml_is_quantized(t->type) && matches_filter) {
+         uint8_t * data = is_host ? (uint8_t *) t->data : pimpl->data.data();
+-        common_debug_print_tensor(data, t->type, t->ne, t->nb, 3, pimpl->abort_on_nan);
++        // Rows are elided to first-n / last-n. For small tensors that must be
++        // captured whole -- MoE top-k selections are 8 wide, so the default
++        // n=3 drops the middle two experts -- raise it via the environment
++        // rather than changing the default.
++        static const int64_t print_n = []() {
++            const char * s = getenv("LLAMA_DEBUG_PRINT_N");
++            return s ? std::max(1L, strtol(s, nullptr, 10)) : 3L;
++        }();
++        common_debug_print_tensor(data, t->type, t->ne, t->nb, print_n, pimpl->abort_on_nan);
+     }
+ 
+     return true;

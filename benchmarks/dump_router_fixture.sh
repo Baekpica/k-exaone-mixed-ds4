@@ -24,13 +24,21 @@ LABEL=$(basename "$MODEL" .gguf)
 echo "[dump] model=$MODEL"
 echo "[dump] prompt=$PROMPT"
 
-# ffn_moe_topk        -- selected expert indices  (i32, [n_expert_used, n_tokens])
-# ffn_moe_weights_norm-- weights after top-k normalization
-# ffn_moe_probs       -- sigmoid gate output before selection
-llama.cpp/build-sm120/bin/llama-eval-callback \
-  -m "$MODEL" -ngl "$NGL" -sm layer -c 512 -n 1 --temp 0 \
-  -p "$PROMPT" \
-  --tensor-filter 'ffn_moe_topk|ffn_moe_weights_norm|ffn_moe_probs' \
+# llama-debug, not llama-eval-callback: --tensor-filter is registered only for
+# LLAMA_EXAMPLE_DEBUG. It also saves final logits, which is a second reference
+# the sm_121 stage cannot regenerate.
+#
+# ffn_moe_topk         -- selected expert indices (i32, [n_expert_used, n_tokens])
+# ffn_moe_weights_norm -- weights after top-k normalization
+# ffn_moe_probs        -- sigmoid gate output before selection
+# LLAMA_DEBUG_PRINT_N=8: without it rows are elided to first-3/last-3 and a
+# top-8 selection loses its middle two experts.
+LLAMA_DEBUG_PRINT_N=8 llama.cpp/build-sm120/bin/llama-debug \
+  -m "$MODEL" -ngl "$NGL" -sm layer -c 512 --temp 0 \
+  -p "$PROMPT" --verbose -n 1 \
+  --tensor-filter 'ffn_moe_topk' \
+  --tensor-filter 'ffn_moe_weights_norm' \
+  --tensor-filter 'ffn_moe_probs' \
   > "$OUT/router-$LABEL.raw" 2>&1
 
 echo "[dump] raw -> $OUT/router-$LABEL.raw ($(du -h "$OUT/router-$LABEL.raw" | cut -f1))"
