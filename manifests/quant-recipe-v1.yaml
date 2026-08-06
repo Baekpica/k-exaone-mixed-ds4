@@ -1,0 +1,71 @@
+recipe:
+  name: k-exaone-236b-a23b-spark-mixed-v1
+  source_model: LGAI-EXAONE/K-EXAONE-236B-A23B
+  source_revision: 61e6d578eb102b578e5704e2916ac841df9eca0a
+  source_gguf: LGAI-EXAONE/K-EXAONE-236B-A23B-GGUF
+  source_gguf_revision: 5bd0394e4f42c00df63e207b9c434387523a6b77
+  target_size_gib: [82, 90]
+  hard_limit_gib: 92
+
+# Named rule set. Each rule targets GGUF tensor names by regex (llama-quantize
+# --tensor-type semantics: std::regex_search, FIRST match wins).
+# Order here IS the match order -- most specific first.
+rules:
+  # --- norms: never quantized by llama.cpp (name contains "_norm.weight"),
+  #     kept at source dtype. Listed for documentation/verification only.
+  norms: f32
+
+  # --- router: llama.cpp never quantizes ffn_gate_inp; exp_probs_b is 1-D.
+  #     Both stay at source dtype. Documented, enforced by the verifier.
+  router: source
+
+  # --- explicit quant targets ---
+  embedding: q8_0                 # multilingual token fidelity
+  output: q8_0                    # logit / typo sensitivity
+  attention: q8_0                 # attn q/k/v/o -- long-context stability
+  dense_layer_0: q8_0             # every token passes layer 0
+  shared_expert: q8_0             # every token passes the shared path
+  routed_expert_gate_up: iq2_xxs  # bulk of model capacity
+  # Work order specifies Q2_K here, reasoning that the accumulation path must be
+  # more conservative than gate/up. At Q2_K the artifact projects to 79.54 GiB --
+  # 2.5 GiB *under* the 82-90 GiB target. Q3_K spends that headroom on exactly
+  # the tensor the stated principle singles out: 85.48 GiB, in target.
+  # Preferred over widening the edge-layer set, which would instead change a
+  # parameter the work order fixes explicitly.
+  routed_expert_down: q3_k        # weighted accumulation, more conservative
+  mtp: q8_0                       # speculative draft quality / acceptance
+
+layer_overrides:
+  # edge MoE layers: protect first and last sparse blocks
+  - layers: [1, 2, 3, 4, 44, 45, 46, 47]
+    routed_expert_gate_up: q4_k
+    routed_expert_down: q4_k
+
+# Ordered fallback if the artifact exceeds hard_limit_gib.
+# Router and norms are excluded from every reduction step.
+size_reduction_ladder:
+  - step: 1
+    change: {embedding: q6_k, output: q6_k}
+  - step: 2
+    change: {edge_layers: [1, 2, 46, 47]}
+  - step: 3
+    change: {shared_expert_down: q6_k}
+  - step: 4
+    change: {attention_output: q6_k}
+
+# v1 pilot variant: IQ2_XXS requires an importance matrix in llama.cpp
+# (tensor_requires_imatrix -> hard error). The pilot substitutes Q2_K so the
+# end-to-end pipeline completes without blocking on imatrix generation.
+variants:
+  # Pilot: substitutes Q2_K for IQ2_XXS so the end-to-end pipeline completes
+  # without blocking on imatrix generation. Q2_K down is kept (rather than Q3_K)
+  # to stay inside the size target: 87.77 GiB. This is a usable artifact, not a
+  # throwaway -- it is the Phase C/D baseline while the imatrix is produced.
+  v1-pilot-noimatrix:
+    routed_expert_gate_up: q2_k
+    routed_expert_down: q2_k
+    projected_gib: 87.77
+    requires_imatrix: false
+  v1:
+    requires_imatrix: true
+    projected_gib: 85.48

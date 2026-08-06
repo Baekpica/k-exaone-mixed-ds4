@@ -1,0 +1,32 @@
+{"id": "ko_qa_01", "category": "ko_general_qa", "prompt": "조선 세종대왕이 훈민정음을 창제한 배경과 목적을 세 문단으로 설명해 주세요."}
+{"id": "ko_qa_02", "category": "ko_general_qa", "prompt": "한국의 4계절 기후가 농업에 미치는 영향을 구체적인 작물 예시와 함께 설명해 주세요."}
+{"id": "ko_qa_03", "category": "ko_general_qa", "prompt": "전세 제도와 월세 제도의 차이를 임차인 관점에서 장단점 중심으로 정리해 주세요."}
+{"id": "ko_qa_04", "category": "ko_general_qa", "prompt": "한국어의 높임법 체계를 주체 높임, 객체 높임, 상대 높임으로 나누어 예문과 함께 설명해 주세요."}
+{"id": "ko_qa_05", "category": "ko_general_qa", "prompt": "반도체 미세공정에서 EUV 노광 장비가 중요한 이유를 비전공자도 이해할 수 있게 설명해 주세요."}
+{"id": "ko_qa_06", "category": "ko_general_qa", "prompt": "국민연금의 소득대체율이란 무엇이며, 왜 이것이 연금 개혁 논의의 핵심 쟁점인지 설명해 주세요."}
+{"id": "ko_qa_07", "category": "ko_general_qa", "prompt": "김치의 발효 과정에서 일어나는 미생물학적 변화를 단계별로 설명해 주세요."}
+{"id": "ko_qa_08", "category": "ko_general_qa", "prompt": "서울의 대중교통 환승 할인 제도가 어떻게 작동하는지, 계산 예시를 들어 설명해 주세요."}
+{"id": "ko_wr_01", "category": "ko_writing", "prompt": "다음 문장의 맞춤법과 띄어쓰기를 교정하고, 무엇을 왜 고쳤는지 항목별로 설명해 주세요.\n\n\"어제 회의에서 논의됬던 안건은 내일까지 정리해서 보고드리겠읍니다. 그리고 김대리님이 말씀하신 내용도 함께 반영할게요. 담당자분들께서는 확인 부탁드립니다.\""}
+{"id": "ko_wr_02", "category": "ko_writing", "prompt": "다음 문장을 공손하고 격식 있는 비즈니스 이메일 문체로 다시 써 주세요.\n\n\"그 자료 아직도 안 왔는데요. 언제 줄 건지 알려주세요. 이러면 일정 못 맞춰요.\""}
+{"id": "ko_wr_03", "category": "ko_writing", "prompt": "'가을 새벽의 도시'를 주제로 400자 내외의 서정적인 산문을 써 주세요."}
+{"id": "ko_wr_04", "category": "ko_writing", "prompt": "다음 문단을 초등학교 5학년이 이해할 수 있는 수준으로 다시 써 주세요.\n\n\"양자 얽힘은 두 입자가 공간적으로 분리되어 있더라도 measurement 결과가 상관관계를 갖는 비국소적 현상으로, 고전적 국소 실재론으로는 설명되지 않는다.\""}
+{"id": "en_kr_01", "category": "en_reasoning", "prompt": "Explain why the Roman Republic transitioned into the Roman Empire. Identify the three most important structural causes and rank them by significance, justifying the ranking."}
+{"id": "en_kr_02", "category": "en_reasoning", "prompt": "A ship's crew finds that their compass points 12 degrees off from true north. List the possible causes, then describe how you would distinguish between them using only equipment available on a 19th-century sailing vessel."}
+{"id": "en_kr_03", "category": "en_reasoning", "prompt": "Compare and contrast mitosis and meiosis, then explain why sexually reproducing organisms need both."}
+{"id": "en_kr_04", "category": "en_reasoning", "prompt": "If a country's central bank raises interest rates while its government simultaneously increases deficit spending, what happens to the exchange rate? Walk through the competing mechanisms."}
+{"id": "math_01", "category": "math", "prompt": "A train leaves station A at 14:00 traveling 80 km/h. Another leaves station B at 14:30 traveling 100 km/h toward A. The stations are 500 km apart. At what time do they meet, and how far from A? Show every step."}
+{"id": "math_02", "category": "math", "prompt": "연속하는 세 홀수의 곱이 3315입니다. 세 수를 구하고, 풀이 과정을 단계별로 보여 주세요."}
+{"id": "math_03", "category": "math", "prompt": "Find all real solutions to x^4 - 5x^2 + 4 = 0. Show the substitution, solve, and verify each root."}
+{"id": "math_04", "category": "math", "prompt": "한 상자에 빨간 공 5개, 파란 공 3개가 있습니다. 공을 복원 없이 두 번 뽑을 때 두 공의 색이 다를 확률을 구하고, 계산 과정을 보여 주세요."}
+{"id": "code_01", "category": "code", "prompt": "Write a Python function `merge_intervals(intervals)` that merges overlapping closed intervals and returns them sorted. Include docstring and three test cases."}
+{"id": "code_02", "category": "code", "prompt": "다음 C 함수에는 버그가 두 개 있습니다. 찾아서 고치고, 각각이 왜 버그인지 설명해 주세요.\n\n```c\nchar *str_dup_upper(const char *s) {\n    int n = strlen(s);\n    char *out = malloc(n);\n    for (int i = 0; i <= n; i++) out[i] = toupper(s[i]);\n    return out;\n}\n```"}
+{"id": "code_03", "category": "code", "prompt": "Write a SQL query that, for each department, returns the department name and the second-highest salary in it. Handle departments with fewer than two employees. Assume tables `employees(id, name, dept_id, salary)` and `departments(id, name)`."}
+{"id": "code_04", "category": "code", "prompt": "Rewrite this JavaScript to be non-blocking and to handle errors properly:\n\n```js\nfunction loadAll(urls) {\n  let out = [];\n  for (const u of urls) { out.push(JSON.parse(require('fs').readFileSync(u))); }\n  return out;\n}\n```"}
+{"id": "json_01", "category": "json_tool", "prompt": "Extract the structured data from this text and return ONLY valid JSON matching the schema {\"name\":string,\"age\":number,\"email\":string,\"skills\":string[]}.\n\n\"김민준 씨는 32세이며 minjun.kim@example.com 으로 연락 가능합니다. Python, Rust, 그리고 Kubernetes를 다룰 수 있습니다.\""}
+{"id": "json_02", "category": "json_tool", "prompt": "Return ONLY a JSON array of objects with keys `city`, `country`, `population_millions` for the three largest cities in East Asia by metropolitan population."}
+{"id": "json_03", "category": "json_tool", "prompt": "You have a tool `get_weather(location: string, unit: \"c\"|\"f\")`. The user asks: \"서울 날씨 어때? 섭씨로 알려줘.\" Return ONLY the tool call as JSON: {\"tool\":\"get_weather\",\"arguments\":{...}}"}
+{"id": "json_04", "category": "json_tool", "prompt": "Convert this to a JSON config. Return ONLY JSON.\n\nserver listens on port 8080, has TLS enabled with cert at /etc/ssl/cert.pem, allows 3 retries with 500ms backoff, and logs at info level to stdout."}
+{"id": "long_01", "category": "long_context", "prompt": "아래 문서에서 '프로젝트 아틀라스'의 예산 총액과 담당 부서를 찾아 정확히 인용해 주세요.", "needs_haystack": true, "needle": "프로젝트 아틀라스의 총 예산은 47억 3천만 원이며, 담당 부서는 전략기획본부 산하 신사업개발팀입니다."}
+{"id": "long_02", "category": "long_context", "prompt": "In the document below, find the version number and release date of 'Halcyon Runtime' and quote them exactly.", "needs_haystack": true, "needle": "Halcyon Runtime version 4.11.2 was released on 2025-09-17 after a six-week stabilization period."}
+{"id": "long_03", "category": "long_context", "prompt": "아래 문서에 등장하는 모든 인명을 등장 순서대로 나열해 주세요.", "needs_haystack": true, "needle": "이 회의에는 박서연 이사, 최도현 팀장, 그리고 정하윤 연구원이 참석했다."}
+{"id": "long_04", "category": "long_context", "prompt": "From the document below, extract the three numbered constraints listed under the 'Migration Constraints' heading.", "needs_haystack": true, "needle": "Migration Constraints:\n1. No downtime exceeding 90 seconds.\n2. Rollback must complete within 5 minutes.\n3. Schema changes must be backward compatible for two releases."}
