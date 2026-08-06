@@ -29,7 +29,7 @@ known, and what the `sm_121` stage has to do first.
 | Variant | Size | sha256 | Verified against recipe |
 |---|---:|---|---|
 | pilot (`Q2_K` experts, no imatrix) | 87.84 GiB | `2d840ee44b0e10cb2e14ec7cf58d2e7849615de1a92f58b1220790f42310ce39` | yes, clean |
-| v1 (`IQ2_XXS` gate/up, `Q3_K` down) | 85.5 GiB projected | see `*.manifest.json` | see `verify-v1.json` |
+| v1 (`IQ2_XXS` gate/up, `Q3_K` down) | 85.56 GiB | `0e93f4bc41db6eb53c3520352ff7ec0be40749948a6608deb4cc2ad0818c94a1` | yes, clean |
 
 Both preserve all 128 routed experts, the shared expert, and the 1-layer MTP
 block at `blk.48` (15 tensors, `Q8_0`).
@@ -39,7 +39,9 @@ block at `blk.48` (15 tensors, `Q8_0`).
 Sizing targets a single 128 GB unified-memory device but **has not been measured
 there**. What is known:
 
-- Artifact on disk: 87.84 GiB (pilot) / ~85.5 GiB (v1).
+- Artifact on disk: 87.84 GiB (pilot) / 85.56 GiB (v1). Each is published as
+  three shards because the Hub caps files at 50 GB; llama.cpp loads them from
+  the first shard with no merge step (verified).
 - That leaves roughly 40 GiB of the 128 GB for the runtime workspace, logits,
   CUDA graphs, KV cache, MTP state, and the operator safety floor — before
   accounting for whatever the OS and driver hold.
@@ -131,9 +133,9 @@ The v1 imatrix was built from a 20.6 MB corpus covering all six languages the
 model serves, Korean weighted heaviest. Coverage was checked, not assumed:
 
 ```
-475 chunks, 243,200 tokens
+775 chunks, 396,800 tokens
 experts never activated: 0 / 36,096 expert-slots
-lowest per-expert activation count: 589   mean: 15,170
+lowest per-expert activation count: 1,159   mean: 24,770
 ```
 
 Every one of 128 experts in all 47 MoE layers was activated. Re-run
@@ -144,17 +146,23 @@ silently zero imatrix row produces a silently bad artifact.
 
 | | |
 |---|---|
-| Pilot load in `llama-server`, 4 GPUs | 10.2 s (page cache warm) |
-| Korean decode, single stream | 78.1 tok/s |
-| Broken-jamo ratio | 0.000 |
+| Load in `llama-server`, 4 GPUs | 10-21 s (page cache warm) |
+| Korean decode, single stream | pilot 66.5 tok/s · v1 77.6 tok/s |
+| Broken-jamo ratio | 0.0001 / 0.0003 |
+| Word-agreement vs the `Q8_0` build | pilot 0.139 · **v1 0.183** |
+| — json / tool-call | pilot 0.250 · **v1 0.681** |
+| JSON parses, needle retrieved | 4/4, 3/4 for both |
 
-These are llama.cpp numbers on discrete GDDR7 GPUs. They say the artifact is
-sound; they say nothing about GB10 throughput, and must not be quoted as such.
+v1 tracks the `Q8_0` reference more closely than the pilot while being 2.3 GiB
+smaller. These are llama.cpp numbers on discrete GDDR7 GPUs: they say the
+artifact is sound, they say nothing about GB10 throughput, and they must not be
+quoted as such.
 
 ## Not done
 
-- Phase C is partial: the fixture harness exists and the pilot was mid-run when
-  it was stopped to free GPUs for the imatrix. No Q4_K_M baseline comparison yet.
+- Phase C ran both artifacts against a `Q8_0` reference, but there is no
+  `Q4_K_M` or BF16 baseline comparison, and no benchmark suite beyond the 32
+  fixtures.
 - No `sm_121` build has been attempted. The build target is defined in
   `build-manifest.json`; nothing has compiled for GB10.
 - ds4 has a CPU reference forward but no CUDA kernels, no batching, no MTP
