@@ -1,0 +1,1194 @@
+{
+ "gguf": "/workspace/artifacts/K-EXAONE-236B-A23B-MXQ-IQ2XXS-Q3K-Q4Edge-Q8Dense-MTPQ8-v1.gguf",
+ "variant": "v1",
+ "bytes": 91867578336,
+ "gib": 85.55834957957268,
+ "n_tensors": 781,
+ "type_histogram": {
+  "Q8_0": 346,
+  "F32": 294,
+  "Q4_K": 24,
+  "Q3_K": 39,
+  "IQ2_XXS": 78
+ },
+ "unquantized": [
+  {
+   "name": "blk.0.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.0.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.0.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.0.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.1.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.1.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.1.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.1.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.1.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.1.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.10.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.10.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.10.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.10.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.10.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.10.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.11.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.11.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.11.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.11.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.11.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.11.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.12.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.12.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.12.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.12.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.12.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.12.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.13.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.13.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.13.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.13.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.13.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.13.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.14.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.14.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.14.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.14.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.14.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.14.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.15.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.15.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.15.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.15.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.15.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.15.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.16.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.16.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.16.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.16.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.16.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.16.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.17.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.17.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.17.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.17.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.17.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.17.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.18.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.18.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.18.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.18.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.18.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.18.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.19.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.19.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.19.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.19.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.19.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.19.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.2.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.2.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.2.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.2.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.2.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.2.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.20.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.20.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.20.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.20.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.20.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.20.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.21.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.21.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.21.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.21.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.21.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.21.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.22.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.22.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.22.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.22.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.22.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.22.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.23.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.23.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.23.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.23.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.23.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.23.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.24.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.24.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.24.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.24.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.24.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.24.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.25.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.25.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.25.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.25.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.25.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.25.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.26.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.26.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.26.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.26.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.26.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.26.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.27.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.27.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.27.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.27.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.27.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.27.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.28.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.28.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.28.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.28.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.28.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.28.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.29.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.29.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.29.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.29.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.29.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.29.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.3.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.3.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.3.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.3.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.3.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.3.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.30.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.30.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.30.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.30.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.30.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.30.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.31.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.31.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.31.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.31.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.31.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.31.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.32.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.32.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.32.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.32.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.32.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.32.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.33.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.33.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.33.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.33.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.33.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.33.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.34.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.34.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.34.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.34.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.34.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.34.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.35.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.35.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.35.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.35.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.35.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.35.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.36.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.36.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.36.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.36.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.36.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.36.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.37.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.37.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.37.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.37.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.37.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.37.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.38.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.38.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.38.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.38.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.38.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.38.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.39.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.39.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.39.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.39.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.39.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.39.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.4.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.4.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.4.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.4.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.4.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.4.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.40.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.40.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.40.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.40.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.40.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.40.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.41.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.41.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.41.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.41.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.41.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.41.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.42.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.42.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.42.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.42.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.42.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.42.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.43.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.43.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.43.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.43.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.43.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.43.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.44.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.44.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.44.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.44.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.44.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.44.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.45.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.45.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.45.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.45.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.45.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.45.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.46.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.46.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.46.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.46.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.46.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.46.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.47.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.47.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.47.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.47.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.47.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.47.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.48.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.48.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.48.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.48.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.48.nextn.enorm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.48.nextn.hnorm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.48.nextn.shared_head_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.5.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.5.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.5.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.5.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.5.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.5.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.6.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.6.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.6.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.6.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.6.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.6.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.7.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.7.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.7.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.7.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.7.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.7.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.8.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.8.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.8.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.8.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.8.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.8.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.9.attn_k_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.9.attn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.9.attn_q_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.9.exp_probs_b.bias",
+   "type": "F32"
+  },
+  {
+   "name": "blk.9.ffn_gate_inp.weight",
+   "type": "F32"
+  },
+  {
+   "name": "blk.9.ffn_norm.weight",
+   "type": "F32"
+  },
+  {
+   "name": "output_norm.weight",
+   "type": "F32"
+  }
+ ],
+ "errors": [],
+ "warnings": []
+}

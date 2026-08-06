@@ -21,14 +21,30 @@ are preserved.** No experts were pruned or merged.
 
 ## Variants
 
-| File | Size | Routed gate/up | Routed down | Needs imatrix |
+| Variant | Size | Routed gate/up | Routed down | Built with imatrix |
 |---|---:|---|---|---|
-| `…-MXQ-IQ2XXS-Q3K-Q4Edge-Q8Dense-MTPQ8-v1.gguf` | 85.5 GiB | `IQ2_XXS` | `Q3_K` | yes (built with one) |
-| `…-MXQ-Q2K-Q4Edge-Q8Dense-MTPQ8-pilot-v1.gguf` | 87.8 GiB | `Q2_K` | `Q2_K` | no |
+| **v1** `…-MXQ-IQ2XXS-Q3K-Q4Edge-Q8Dense-MTPQ8-v1` | 85.56 GiB | `IQ2_XXS` | `Q3_K` | yes |
+| **pilot** `…-MXQ-Q2K-Q4Edge-Q8Dense-MTPQ8-pilot-v1` | 87.84 GiB | `Q2_K` | `Q2_K` | no |
+
+Each is published as three shards (`-00001-of-00003` …) because the Hub caps
+individual files at 50 GB. Point llama.cpp at the **first** shard; it loads the
+rest automatically. No merge step is needed:
+
+```bash
+llama-server -m K-EXAONE-236B-A23B-MXQ-IQ2XXS-Q3K-Q4Edge-Q8Dense-MTPQ8-v1-00001-of-00003.gguf \
+  -ngl 99 -c 8192
+```
 
 The pilot exists because llama.cpp treats `IQ2_XXS` without an importance
-matrix as a hard error. It is a complete, usable artifact — slightly larger and
-built without calibration data — not a preview of the other one.
+matrix as a hard error, so it substitutes `Q2_K` and needs no calibration data.
+**v1 is the better artifact on both axes** — 2.3 GiB smaller *and* closer to the
+Q8_0 reference (see below) — so prefer it unless you specifically want an
+artifact built without calibration data.
+
+| sha256 | |
+|---|---|
+| v1 (unsplit) | `0e93f4bc41db6eb53c3520352ff7ec0be40749948a6608deb4cc2ad0818c94a1` |
+| pilot (unsplit) | `2d840ee44b0e10cb2e14ec7cf58d2e7849615de1a92f58b1220790f42310ce39` |
 
 ## Recipe
 
@@ -114,15 +130,41 @@ Two real caveats:
   attention path has to be written. Until then llama.cpp is the way to run these
   files.
 
+## Measured quality
+
+32 fixtures, greedy (`temperature=0`, `top_k=1`), reasoning off,
+`max_tokens` 768, compared against the same fixtures run on the official
+**`Q8_0`** build (234.7 GiB) as reference.
+
+| | pilot `Q2_K` · 87.84 GiB | **v1 `IQ2_XXS`+`Q3_K` · 85.56 GiB** |
+|---|--:|--:|
+| word-agreement vs `Q8_0`, mean | 0.139 | **0.183** |
+| — json / tool-call | 0.250 | **0.681** |
+| — long-context retrieval | 0.364 | **0.450** |
+| identical outputs | 2/32 | 3/32 |
+| JSON parses | 4/4 | 4/4 |
+| needle retrieved | 3/4 | 3/4 |
+| broken-jamo ratio | 0.0001 | 0.0003 |
+| repetition (3-gram) | 0.022 | 0.022 |
+| decode, 4 × RTX PRO 6000 | 66.5 tok/s | 77.6 tok/s |
+
+v1 tracks the `Q8_0` reference more closely than the pilot **while being
+smaller** — the importance matrix and `Q3_K` down are doing real work, most
+visibly on structured output. Absolute agreement is low for both because greedy
+long-form generation diverges after a single differing token; the pair track for
+about 11 words on average before separating. The task-level outcomes (JSON
+validity, retrieval, no jamo collapse, no repetition loops) match the `Q8_0`
+reference's own scores.
+
 ## Limitations
 
 - `IQ2_XXS` on routed gate/up is aggressive. The recipe protects embeddings,
   attention, router, shared expert, dense layer 0, and the edge MoE layers
   specifically to offset it, but expect degradation relative to `Q4_K_M` on
   tasks that lean on rarely-activated experts.
-- Evaluation to date is a 32-prompt fixture smoke test plus token-fidelity
-  comparison against a higher-precision reference, not a full benchmark suite.
-  Results ship in the converter repository, including the cases that failed.
+- Evaluation is a 32-prompt fixture set plus the token-fidelity comparison
+  above, not a full benchmark suite. Raw results, including the failures, ship
+  in the converter repository.
 - Not yet validated on DGX Spark / `sm_121`. Sizing targets that device, but
   the resident-memory, context and throughput numbers there are not measured.
 
