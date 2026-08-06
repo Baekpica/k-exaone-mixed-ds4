@@ -53,12 +53,14 @@ tensor table before anything is written.
 ## Status
 
 - **Artifacts** — done, published, verified.
-- **ds4** — architecture detection, hparam validation, tensor binder and
-  mixed-quant layout validation are in. **The forward path is not.** ds4 is an
-  MLA-only engine (`n_head_kv = 1` in all its shapes, with a sparse DSA
-  indexer); K-EXAONE is plain GQA with QK-norm, so that attention path has to be
-  written from scratch in both the reference and CUDA. Until then, run the
-  artifacts with llama.cpp.
+- **ds4** — loads a K-EXAONE GGUF and runs a **CPU reference forward**:
+  architecture detection, hparam validation, tensor binder, layout validation,
+  Q3_K dequantization, GQA attention with QK-norm, the LLLG schedule, and the
+  sigmoid-routed MoE. Validated against llama.cpp on the same model: same greedy
+  token, `attn_norm` exact to four decimals, and the residual difference traced
+  to 8-bit activation quantization rather than the architecture.
+  **No CUDA kernels yet**, no batching, no MTP speculative decode — so run the
+  artifacts with llama.cpp for now.
 - **DGX Spark** — nothing has run on GB10. Sizing targets it; resident memory,
   `sm_121` correctness and serving throughput are unmeasured. See
   `reports/DGX-SPARK-HANDOFF.md`.

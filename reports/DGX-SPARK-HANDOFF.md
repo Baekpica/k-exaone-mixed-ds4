@@ -10,7 +10,7 @@ known, and what the `sm_121` stage has to do first.
 |---|---|
 | Mixed-quant artifacts + provenance | `Baekpica/K-EXAONE-236B-A23B-Mixed-Quant-GGUF` (public) |
 | Converter, recipe, verifier, benchmarks | `k-exaone-mixed-ds4` |
-| ds4 K-EXAONE loader | `Baekpica/ds4`, branch `feature/exaone-model-loader` |
+| ds4 K-EXAONE loader + reference forward | `Baekpica/ds4`, branch `feature/exaone-model-loader` |
 | Reference fixtures + expected outputs | `fixtures/`, `benchmarks/results/` |
 | This bundle | private HF bucket |
 
@@ -58,28 +58,63 @@ response — embeddings and output to `Q6_K` first, never the router or norms.
 
 ## ds4 state — read before planning kernel work
 
-`feature/exaone-model-loader` contains **Phase D2-1 only**: architecture
-detection, hparam validation, tensor binder, layout validation. It compiles
-clean. **It cannot run inference.** What is missing, in order:
+`feature/exaone-model-loader` now runs **Phase D2-1 and D2-2**: architecture
+detection, hparam validation, tensor binder, layout validation, Q3_K
+dequantization, and a complete CPU reference forward. A K-EXAONE GGUF loads and
+produces logits. `tests/test_exaone_ref` is the harness.
 
-1. **GQA attention.** This is the big one. All four existing ds4 shapes set
-   `n_head_kv = 1` and use MLA with a sparse DSA indexer. K-EXAONE is plain GQA
-   — 64 query heads over 8 KV heads at head_dim 128, with per-head RMSNorm on Q
-   and K before RoPE. No GQA path exists in ds4, reference or CUDA. Neither the
-   attention kernels nor the KV cache layout can be reused from DeepSeek4/GLM.
-2. **LLLG KV cache.** Sliding layers need only the last 128 tokens; full layers
-   need everything. The two must be separate cache types, correctly forked and
-   copied per session.
-3. **MoE forward.** This part reuses well — `n_ff_exp` 2048, one shared expert
-   and `expert_weight_scale` 2.5 are identical to GLM 5.2. Router differences to
-   respect: sigmoid gating (`expert_gating_func` 2), top-8, normalized top-k
-   probabilities, and a per-layer `exp_probs_b` score-correction bias.
-4. **The MTP block is dense.** `blk.48` has `ffn_gate/up/down` at 18432, not
-   expert tensors — the binder already handles this, the forward path must too.
-   It has no embedding or LM head of its own; it shares the base model's.
-5. **`Q3_K` CPU reference dequant.** `DS4_TENSOR_Q3_K` is now declared and
-   `cuda/mmq/` already vendors llama.cpp's Q3_K kernel, but ds4's CPU reference
-   path has no Q3_K block struct. v1 needs it for routed expert down.
+### Architecture details that are not in the config
+
+These came from reading llama.cpp's exaone-moe graph. Each would have produced
+plausible-looking garbage, and each is already handled in the reference path —
+**the CUDA kernels have to reproduce all of them**:
+
+1. **RoPE is applied on sliding-window layers only.** Every fourth layer is
+   full attention *and* has no positional encoding at all. LLLG is
+   local+RoPE / global+NoPE, not merely a window change.
+2. **RoPE is NeoX-style**: element *i* pairs with *i + n_rot/2*, not *i+1*.
+3. **QK-norm runs before RoPE**, per head over `head_dim` (128), not `n_embd`.
+4. **`exp_probs_b` steers top-k selection only.** Expert weights are gathered
+   from the *unbiased* sigmoid probabilities, then normalized (clamped at
+   6.103515625e-5), then scaled by 2.5. Folding the bias into the weights keeps
+   the same experts and still changes every output.
+5. **The MTP block is dense.** `blk.48` has `ffn_gate/up/down` at 18432, not
+   expert tensors, and shares the base model's embedding and LM head.
+
+### Validation status
+
+Against llama.cpp on the same Q8_0 model and tokens:
+
+- greedy next token matches (argmax 46862 in both)
+- `attn_norm-0` matches to four decimals — embedding and RMSNorm are exact
+- residual difference is a numerical path difference, not architectural: the
+  layer-0 attention output differs by a *constant ~2e-3 absolute* regardless of
+  element magnitude, the signature of 8-bit activation quantization. Enabling it
+  (`DS4_EXAONE_QUANT_ACT=1`) cuts that error by 3–13× per element. It does not
+  converge fully because llama.cpp's CUDA path uses Q8_1 activations, not Q8_0.
+- what is left shows up as rank swaps between experts whose sigmoid
+  probabilities are nearly tied — 14 of 47 layers match the top-8 in exact
+  order, 15 more match the same set in a different order.
+
+Rejected hypotheses, recorded so they are not retried: f16 KV cache (matched
+now, changes nothing at position 0 where attention is trivial) and ds4's
+`f16_to_f32` (an exact IEEE conversion).
+
+**Position 0 does not exercise RoPE or QK-norm** — at pos 0 the rotation is
+identity and softmax over a single position is 1.0 regardless of Q·K. The
+multi-token logits comparison does exercise them; the 128-token sliding window
+does not yet, and needs a prompt longer than 128 tokens.
+
+### Still missing
+
+1. **CUDA kernels.** Nothing of the above is on the GPU. Both `sm_120` and
+   `sm_121` are unwritten.
+2. **Batching, KV session management, serving.** The reference path is
+   single-token, allocates per call, and has its own cache struct rather than
+   ds4's session-managed one.
+3. **MTP speculative decode.** The block is bound; nothing runs it.
+4. **`Q3_K` activation-quantized dot.** The f32 path exists and is verified;
+   the q8-activation fast path skips Q3_K.
 
 ## Why `Q3_K` for routed expert down
 
@@ -122,6 +157,6 @@ sound; they say nothing about GB10 throughput, and must not be quoted as such.
   it was stopped to free GPUs for the imatrix. No Q4_K_M baseline comparison yet.
 - No `sm_121` build has been attempted. The build target is defined in
   `build-manifest.json`; nothing has compiled for GB10.
-- No ds4 forward path, so no MTP speculative decode, no continuous batching, no
-  OpenAI-compatible serving through ds4.
+- ds4 has a CPU reference forward but no CUDA kernels, no batching, no MTP
+  speculative decode and no OpenAI-compatible serving.
 - Phases F and G are entirely unstarted — they are DGX-Spark-only by definition.
