@@ -252,6 +252,19 @@ decode-ready requests (concurrency); `--exaone-mtp` / `--exaone-mtp-timing`
 enable the MTP path; `--kv-disk-dir` enables disk KV checkpoints — **not**
 recommended for this model, keep K-EXAONE on in-memory KV.
 
+**Budget `--batched-session` carefully.** Each resident session costs its own KV
+*and* its own 1.60 GiB graph workspace — the workspace is not shared across
+slots — so `N` sessions cost `N × (KV + 1.60 GiB)`. With 84.48 GiB of weights
+resident there is roughly 35 GiB to spend:
+
+| ctx per slot | KV/slot | + workspace | 8 slots | observed total |
+|---:|---:|---:|---:|---:|
+| 16 384 | 0.75 GiB | 2.35 GiB | 18.8 GiB | **108.8 GiB**, 9 GiB free |
+| 40 960 | 1.89 GiB | 3.49 GiB | 27.9 GiB | **117.9 GiB**, 0.5 GiB free — too tight |
+
+`--batched-session 8 -c 40960` boots but leaves the machine with half a gigabyte
+of headroom. Prefer more context per slot or fewer slots, not both.
+
 ### Resident memory at `-c 262144`
 
 The 85.56 GiB GGUF is mapped once and left **unpinned**; ds4 then materialises
@@ -349,14 +362,47 @@ memory result and it holds. It is not a throughput result. A cold 256K prompt
 would take hours to prefill on this hardware, and decode at that depth runs
 below 1 token/s. **Useful working depths on one GB10 today are roughly 2K–32K.**
 
-Two things work in the model's favour:
+**Multi-turn chat re-pays the whole prefill.** This was measured, not assumed,
+and it is the most important thing to know before building on this:
 
-- Every number above is a **cold** prompt, the worst case. ds4 reuses the
-  session KV when a new prompt extends the live checkpoint exactly, which is
-  the normal case for a chat client replaying its history, so multi-turn
-  conversation does not re-pay prefill.
-- Decode is a per-stream figure. Native session batching
-  (`--batched-session N`) raises aggregate throughput across concurrent users.
+| Turn | Prompt tokens | Time to first token |
+|---|---:|---:|
+| 1 — cold, ~7K document + question | 6 978 | 166.2 s |
+| 2 — same history + the assistant's own reply + a follow-up | 7 086 | **143.9 s** |
+| 3 — a different document, cold | 6 725 | 136.5 s |
+
+Turn 2 is a normal continuation and costs the same as a cold prompt. The server
+log shows why: the live checkpoint held 7 074 tokens, the new prompt shared
+**6 984** of them, and all of it was discarded. ds4 reuses session KV only when
+the new prompt contains the *entire* checkpoint
+(`prompt->len >= checkpoint.len && ds4_tokens_starts_with(...)`), and the
+checkpoint includes the tokens the model itself generated. Replaying the
+assistant's reply as text re-tokenises a few of those differently, the
+all-or-nothing test fails, and 98.6 % of a valid prefix is thrown away.
+
+Plan for it: at these prefill rates a 7K-token chat turn costs about 2.5
+minutes each time. Keep conversational context small, or keep the transcript
+short enough that re-prefilling is affordable.
+Concurrency, however, does **not** help today. With `--batched-session 8` and
+short prompts so prefill cannot interfere, aggregate decode throughput is flat:
+
+| Concurrent streams | Summed decode t/s | Per stream |
+|---:|---:|---:|
+| 1 | 11.12 | 11.12 |
+| 2 | 9.80 | ~4.9 |
+| 4 | 10.03 | ~2.5 |
+| 8 | 10.80 | ~1.35 |
+
+Some of that is inherent — in a top-8-of-128 MoE, concurrent tokens route to
+largely disjoint experts, so routed-expert weight reads do not amortise across
+a batch. The shared components should still amortise and do not appear to.
+With **cold** prompts it is worse than flat: prefill is serialised across slots,
+so `N` concurrent long requests behave like `N` sequential ones and wall
+throughput *falls* (3.18 t/s at one stream to 2.01 t/s at eight).
+
+Batching itself is free — at concurrency 1 the batched server matches the plain
+one (10.39 vs 10.51 t/s at 2K, 7.37 vs 7.38 at 8K) — so `--batched-session` is
+worth using for fairness and slot residency, just not for throughput.
 
 ### Where the time goes
 

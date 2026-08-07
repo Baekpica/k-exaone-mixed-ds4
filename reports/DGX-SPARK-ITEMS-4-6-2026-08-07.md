@@ -16,9 +16,21 @@ Model: mixed-quant v1, 85.56 GiB, 3 shards.
 
 | Item | State |
 |---|---|
-| 4 — plain/MTP context × concurrency matrix | run with a reduced frontier set; see *Why the matrix was reduced*. Deep and concurrent cells are still landing as this is written. |
-| 5 — Model Card edit / upload / remote verify | done |
+| 4 — plain/MTP context × concurrency matrix | done, 21 cells over 4 server configurations; frontier set reduced, see *Why the matrix was reduced* |
+| 5 — Model Card edit / upload / remote verify | done, remote README byte-identical |
 | 6 — final 256K serving + API validation | done, all 16 checks pass |
+
+Four server boots produced the matrix:
+
+| Run | Configuration | What it answers |
+|---|---|---|
+| `A-plain-256k-c1` | plain, `-c 262144` | context sweep 2K→64K, and item 6 |
+| `B-mtp-noquench-c1` | `--exaone-mtp-timing`, `DS4_EXAONE_MTP_NO_QUENCH=1`, `-c 262144` | does MTP win at any depth |
+| `C-batched8` | `--batched-session 8 -c 16384` | concurrency 1/2/4/8 with cold prompts |
+| `C2-batched8-short` | `--batched-session 8 -c 4096` | concurrent decode with prefill interference removed |
+
+A fifth, `C-batched8-abandoned-oom-risk` (`-c 40960`), was stopped before
+running: see finding 5.
 
 ## Item 6 — 256K serving and API validation
 
@@ -201,6 +213,76 @@ attention result in *Findings*: this path is bound by per-row cost, not by
 bandwidth. The second lever is acceptance — warming the MTP KV from the prompt
 instead of starting cold should recover much of the 69 % seen at shallow depth.
 
+### Results — concurrency, `--batched-session 8`, `-c 16384`
+
+Reading these correctly needs one caveat first. **Prefill is serialised across
+slots**, so with cold prompts a stream that finishes prefilling starts decoding
+while other slots are still prefilling, and its measured decode rate is starved.
+`scratch/matrix/concurrency.py` reports the window in which *every* stream is
+decoding and flags cells where that window is contaminated — at concurrency 4
+and 8 the window is outright **negative**, meaning the first request finished
+decoding before the last one started.
+
+| conc | prompt each | all-decoding window | wall t/s | note |
+|---:|---:|---:|---:|---|
+| 1 | 1 451 | 12.2 s | 3.18 | clean |
+| 2 | ~1 962 | 26.8 s | 2.54 | clean — per-stream 4.71 + 4.75 |
+| 4 | ~1 960 | 31.9 s | 2.10 | contaminated |
+| 8 | ~1 962 | −6.6 s | 2.01 | fully serialised |
+| 1 | 7 924 | 17.2 s | 0.70 | clean |
+| 2 | ~8 042 | 16.4 s | 0.59 | contaminated |
+| 4 | ~8 015 | −134.0 s | 0.59 | fully serialised |
+| 8 | ~8 048 | −994.5 s | 0.63 | fully serialised |
+
+Two separate conclusions:
+
+**Batched mode adds no overhead at concurrency 1.** 10.39 t/s against the
+non-batched server's 10.51 at the same depth, and 7.37 against 7.38 at 8K. The
+scheduler itself is free.
+
+**Concurrency does not raise throughput for cold prompts.** Wall throughput
+*falls* from 3.18 to 2.01 t/s going from 1 to 8 concurrent requests. Because
+prefill is serialised and, at these prefill rates, dominates everything, N
+concurrent cold requests behave like N sequential ones plus scheduling
+friction. Concurrency only pays when prompts are short or already resident.
+
+### Results — concurrent decode without prefill interference
+
+`C2-batched8-short`: 256-token prompts, `-c 4096`, `--batched-session 8`. Each
+prefill is a few seconds, so the streams enter decode together and stay there
+(the all-decoding window is 22.8 s at concurrency 2 and 75.8 s at 8).
+
+| conc | summed decode t/s | per-stream | wall t/s |
+|---:|---:|---|---:|
+| 1 | 11.12 | 11.12 | 7.88 |
+| 2 | 9.80 | 4.28, 5.52 | 7.10 |
+| 4 | 10.03 | 2.85, 2.50, 1.90, … | 6.90 |
+| 8 | **10.80** | 1.37, 0.97, 1.1, … | 6.89 |
+
+**Aggregate decode throughput is flat from 1 to 8 concurrent streams.**
+Per-stream rate falls as 1/N; the sum does not move. Both the summed-rate and
+the wall-clock metric agree.
+
+How much of that is a defect needs care. Part of it is inherent to the
+architecture: with top-8-of-128 routing, concurrent tokens select largely
+disjoint experts, so **routed-expert weight reads genuinely do not amortise
+across a batch**. A claim that "8× is on the table" would be wrong.
+
+But the parts that *are* shared — attention over each session's KV, the shared
+expert, dense layer 0, embeddings and the LM head — should amortise, and the
+aggregate does not rise at all. The cleaner evidence sits in the MTP numbers,
+because MTP's two rows are **adjacent positions in the same session**, so their
+KV read is fully shareable. As depth grows and that KV read comes to dominate,
+`k` should approach 1.0. Measured, it falls 2.06 → 1.76 → 1.36 and stalls.
+Together with the decode attention path running at ~3 % of device bandwidth,
+the picture is that even the shareable work is not being shared.
+
+### Item 6 re-validated on the final server
+
+The final 256K server (`D-final-256k`, the exact command in *Item 6* above,
+booted in 251 s) passes all 16 API checks again, after four model loads and a
+full benchmark matrix on the same host. It is left running on `:8001`.
+
 ### Cells not run, and why
 
 | Cell | Status | Reason |
@@ -256,6 +338,40 @@ engine only works with DeepSeek V4 and GLM 5.2 GGUFs.
 
 ## Findings that are not on the checklist
 
+### 0. One defect explains three measurements
+
+The most useful thing this run produced is not any single number, it is that
+three independent measurements converge on the same statement: **the exaone
+decode graph does not amortise work across rows.**
+
+| Measurement | What it shows | Ideal | Measured |
+|---|---|---|---|
+| decode vs context depth | marginal cost per context position | ~0.2 µs at device bandwidth | **5.88 µs** (8.35 GB/s, ~3 %) |
+| MTP two-row verify pass | cost of 2 rows relative to 1, same session, adjacent positions | ~1.05 | **1.36** at 33K, 2.06 at 1.5K |
+| concurrent decode, 1→8 streams | aggregate throughput | rises | **flat**, 11.12 → 10.80 t/s |
+
+The third has an innocent partial explanation — top-8-of-128 routing means
+concurrent tokens read largely disjoint experts, so routed weights genuinely
+cannot amortise. The first two do not: KV reads for adjacent positions in one
+session are fully shareable, and they are not being shared.
+
+Fixing row batching in the decode graph would move all three at once: MTP would
+go from break-even to roughly a 25 % gain at current acceptance, concurrency
+would scale on everything except routed-expert reads, and long-context decode
+would stop falling off a cliff.
+
+**It is not, however, the first thing to do.** Finding 2 — the all-or-nothing
+prefix-reuse test that discards a 98.6 %-matching KV prefix on every chat turn
+— is a smaller change against machinery that already exists, and it is worth
+~48× on the most common serving pattern there is. Order of work:
+
+| # | Fix | Effort | Payoff |
+|---|---|---|---|
+| 1 | rewind to `common` instead of re-prefilling from 0 (finding 2) | small — `ds4_session_rewind` exists, `common` is already computed | ~48× on multi-turn chat |
+| 2 | amortise rows in the decode graph (this finding) | large — attention and MoE decode kernels | MTP turns positive; concurrency scales; long-context decode improves |
+| 3 | share the graph workspace across batched sessions (finding 5) | small | ~11 GiB back, 4× the context per slot at 8 slots |
+| 4 | warm the MTP KV ring from the prompt | medium | raises acceptance from 34 % toward the 69 % seen shallow |
+
 ### 1. The decode attention path is the bottleneck, with ~30× headroom
 
 The 12 full-attention layers hold 49 152 bytes of KV per context position
@@ -269,14 +385,52 @@ depth-*independent* half (86.6 ms/token) is roughly consistent with streaming
 the ~8 GiB of active mixed-quant weights, so the MoE weight path is fine. The
 GQA decode attention kernel is the thing to fix.
 
-### 2. Prefill does not reuse a prefix once anything has been generated
+### 2. Multi-turn chat re-pays the entire prefill, and 98.6 % of it was reusable
+
+This is the highest-leverage fix in the report, and the cheapest.
 
 `ds4_session_sync_internal` reuses KV only when
-`prompt->len >= checkpoint.len && ds4_tokens_starts_with(prompt, &checkpoint)`,
-and the checkpoint accumulates generated tokens during decode. Any client that
-extends a prompt *without* replaying the assistant's own output verbatim pays a
-full cold prefill. This is correct behaviour, but it is a sharp edge worth
-documenting for agent frameworks that rebuild prompts.
+`prompt->len >= checkpoint.len && ds4_tokens_starts_with(prompt, &checkpoint)`.
+It is **all-or-nothing**: if the new prompt does not contain the whole
+checkpoint, `start` is 0 and everything is recomputed. The checkpoint includes
+the tokens the model generated, so a chat client must replay the assistant's
+own output *token-exactly* to hit it — and replaying it as text does not,
+because sampled token IDs and the tokenizer's segmentation of the same string
+are not the same sequence.
+
+Measured on the final 256K server (`D-final-256k/continuation.json`):
+
+| Turn | Prompt tokens | TTFT |
+|---|---:|---:|
+| 1 — cold, ~7K document + question | 6 978 | 166.2 s |
+| 2 — same history + assistant reply + follow-up | 7 086 | **143.9 s** |
+| 3 — different document, cold | 6 725 | 136.5 s |
+
+A normal continuation costs what a cold prompt costs. The server's own log
+gives the margin by which it missed:
+
+```text
+live kv cache miss live=7074 prompt=7086 common=6984 reason=token-mismatch
+chat ctx=0..7086:7086 prompt done 143.712s
+```
+
+**6 984 of 7 086 tokens matched — 98.6 % — and all of it was discarded.**
+Rewinding the session to `common` and prefilling the remaining 102 tokens would
+have cost roughly 3 s instead of 143.7 s, a **~48×** improvement on the single
+most common serving pattern.
+
+The machinery already exists: `ds4_session_rewind(ds4_session *s, int pos)` is
+declared in `ds4.h` and defined in `ds4.c`. The batched dispatcher already
+computes `common` per slot to score slot affinity
+(`job_slot_score` → `ds4_session_common_prefix`), so the value is in hand at
+exactly the point the decision is made. What is missing is using it: rewind to
+`common` instead of falling back to `start = 0`.
+
+Two caveats for whoever does it. The exaone graph's sliding-window layers keep
+only the last `DS4_N_SWA` positions, and the reuse comment in
+`ds4_session_sync_internal` notes this is "exactly what their attention will
+read" for an append — a rewind invalidates that assumption and needs checking.
+And the private MTP KV ring would have to be reset or rewound with it.
 
 ### 3. Two API defaults silently break naive benchmarks
 
@@ -295,7 +449,37 @@ measure). The SFT calibration corpus is a multiple-choice set, so slices ending
 in `"Answer: "` make the model emit a single letter and stop. Both are recorded
 in `scratch/matrix/A-plain-256k-c1/bench-abandoned-*`.
 
-### 5. The handoff's `clear_cache` precondition is wrong, and the reason matters
+### 5. Batched mode duplicates the graph workspace per session
+
+`--batched-session N` costs `N × (KV + 1.60 GiB)`, not `N × KV + 1.60 GiB`.
+The server sets `share_session_prefill_workspace = true` whenever batching is
+active, but the exaone graph allocates its own workspace per session anyway —
+the boot log prints the same line once per slot:
+
+```text
+ds4: exaone graph: ctx 40960, prefill chunk 2048, KV 1.89 GiB (12 full + 36 sliding layers), workspace 1.60 GiB
+   ... x8
+```
+
+The first phase-C attempt (`--batched-session 8 -c 40960`) therefore reached
+**117.88 GiB with 528 MiB of host memory free** and was abandoned before it
+could OOM the machine; it is kept as
+`scratch/matrix/C-batched8-abandoned-oom-risk/`. The rerun at `-c 16384` sits
+at 108.77 GiB with 9.0 GiB free.
+
+At 8 slots the duplication is **12.8 GiB of workspace where 1.6 GiB would do**
+— about 9 % of the device — and it is the binding constraint on how much
+context a concurrent K-EXAONE server can offer:
+
+| ctx per slot | KV/slot | workspace/slot | 8 slots total |
+|---:|---:|---:|---:|
+| 16 384 | 0.75 GiB | 1.60 GiB | 18.8 GiB |
+| 40 960 | 1.89 GiB | 1.60 GiB | 27.9 GiB |
+
+Making the workspace genuinely shared would return ~11 GiB, which at 0.75 GiB
+of KV per 16K slot is roughly **15 more slots or 4× the context per slot**.
+
+### 6. The handoff's `clear_cache` precondition is wrong, and the reason matters
 
 The previous handoff instructed the operator to run `clear_cache` and confirm
 ~119 GiB free before another large CUDA model boot. On this build that
