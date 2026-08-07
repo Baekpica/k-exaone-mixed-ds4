@@ -1,14 +1,27 @@
 # k-exaone-mixed-ds4
 
-Mixed-precision GGUF builds of **K-EXAONE-236B-A23B** that fit a single
-128 GB device, plus the ds4 engine work to serve them.
+**A 237 B-parameter model, structurally intact, served from a single 128 GB
+DGX Spark — with its full 262 144-token context.**
 
-Quantization is assigned by what each tensor *does* rather than by a global bit
-budget: the router, norms, attention, shared expert and dense layer 0 stay at
-high precision, and the compression comes almost entirely from the routed
-experts, which hold ~64 % of the parameters. All 128 routed experts, the shared
-expert, and the original 1-layer MTP block are preserved — nothing pruned,
-nothing merged.
+Mixed-precision GGUF builds of **K-EXAONE-236B-A23B**, plus the ds4 engine work
+to serve them on GB10.
+
+Nothing is removed. All **128 routed experts** in all 47 MoE layers, the shared
+expert, dense layer 0, and the original 1-layer MTP block are present — 781
+tensors, identical to the BF16 source. No pruning, no expert dropping, no layer
+truncation, no distillation. Only the storage precision changes, and it is
+assigned by what each tensor *does* rather than by a global bit budget: router,
+norms, attention, shared expert and dense layer 0 stay high-precision, and the
+compression comes almost entirely from the routed experts, which hold ~64 % of
+the parameters.
+
+| | |
+|---|---:|
+| Parameters | 237.10 B (A23B active) |
+| BF16 source | 441.63 GiB |
+| **v1 artifact** | **85.56 GiB** (5.16×) |
+| Context served on one GB10 | **262 144 tokens** |
+| Resident at 256K, measured | **103.62 GiB / 121.6 GiB** |
 
 **Artifacts:** [`Baekpica/K-EXAONE-236B-A23B-Mixed-Quant-GGUF`](https://huggingface.co/Baekpica/K-EXAONE-236B-A23B-Mixed-Quant-GGUF) ·
 **Engine:** [`Baekpica/ds4`](https://github.com/Baekpica/ds4/tree/feature/exaone-model-loader)
@@ -53,17 +66,31 @@ tensor table before anything is written.
 ## Status
 
 - **Artifacts** — done, published, verified.
-- **ds4** — loads a K-EXAONE GGUF and runs a **CPU reference forward**:
-  architecture detection, hparam validation, tensor binder, layout validation,
-  Q3_K dequantization, GQA attention with QK-norm, the LLLG schedule, and the
-  sigmoid-routed MoE. Validated against llama.cpp on the same model: same greedy
-  token, `attn_norm` exact to four decimals, and the residual difference traced
-  to 8-bit activation quantization rather than the architecture.
-  **No CUDA kernels yet**, no batching, no MTP speculative decode — so run the
-  artifacts with llama.cpp for now.
-- **DGX Spark** — nothing has run on GB10. Sizing targets it; resident memory,
-  `sm_121` correctness and serving throughput are unmeasured. See
-  `reports/DGX-SPARK-HANDOFF.md`.
+- **ds4** — serves the model end to end on CUDA. The `exaone-moe` family in
+  [`Baekpica/ds4`](https://github.com/Baekpica/ds4/tree/feature/exaone-model-loader)
+  carries architecture detection, the tensor binder, GQA attention with QK-norm,
+  the LLLG sliding-window schedule, sigmoid-routed MoE, `sm_121` CUDA kernels,
+  native session batching, and a target-verified MTP path through `blk.48`.
+  The CPU reference forward still validates against llama.cpp on the same model:
+  same greedy token, `attn_norm` exact to four decimals.
+- **DGX Spark** — measured on GB10 / `sm_121`. The 256K server boots in ~3 min
+  45 s and sits at **103.62 GiB of 121.6 GiB** resident; the OpenAI-compatible
+  API is validated for streaming, thinking-mode `reasoning_content` separation,
+  and cross-request isolation. MTP runs and is exactly greedy-identical, but is
+  **slower than plain decode on this hardware**, so it ships off by default with
+  an automatic loss quench. See `reports/MODEL_CARD.md` and
+  `reports/DGX-SPARK-HANDOFF-2026-08-07-1626-KST.md`.
+
+## Acknowledgements
+
+The engine is other people's work:
+[`antirez/ds4`](https://github.com/antirez/ds4) is the original runtime,
+[`Entrpi/ds4-on-spark`](https://github.com/Entrpi/ds4-on-spark) is the DGX Spark
+port that contributed the `sm_121` target and the aligned-artifact tier this
+model depends on for speed, and
+[`ggml-org/llama.cpp`](https://github.com/ggml-org/llama.cpp) provides GGUF,
+`llama-quantize` and the quant formats that produced these files. The base model
+is [`LGAI-EXAONE/K-EXAONE-236B-A23B`](https://huggingface.co/LGAI-EXAONE/K-EXAONE-236B-A23B).
 
 ## License
 
