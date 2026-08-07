@@ -1,0 +1,83 @@
+{
+  "measured_utc": "2026-08-07T08:20:00Z",
+  "measured_kst": "2026-08-07T17:20:00+09:00",
+  "supersedes": {
+    "file": "manifests/spark-memory-256k.json",
+    "why": "That file was recorded before the aligned-artifact tier landed (ds4 78471cb/64a3b81). It reports cuda_allocation_gib 12.70 with the model read in place from the file mapping, so its 'no GPU tool shows the model footprint' conclusion no longer applies: on this build the weights are CUDA-owned and nvtop reports them. It is left in the tree untouched as the record of that earlier configuration.",
+    "status": "untracked, not modified by this run"
+  },
+  "host": {
+    "name": "thinkstationpgx-8abc",
+    "gpu": "NVIDIA GB10",
+    "arch": "sm_121",
+    "unified_memory_gib": 121.63,
+    "mem_total_kb": 127534340,
+    "nvtop_mem_total_bytes": 130595164160,
+    "driver": "595.71.05",
+    "cuda": "13.3",
+    "kernel": "6.17.0-1029-nvidia"
+  },
+  "engine": {
+    "repo": "https://github.com/Baekpica/ds4",
+    "branch": "feature/exaone-model-loader",
+    "commit": "8c45d39956f0edcc88834d9ec93dd026ff32f69d",
+    "build": "make cuda-spark (CUDA_ARCH=sm_121)",
+    "upstream_engine": "https://github.com/antirez/ds4",
+    "spark_port": "https://github.com/Entrpi/ds4-on-spark"
+  },
+  "model": {
+    "variant": "v1",
+    "file": "K-EXAONE-236B-A23B-MXQ-IQ2XXS-Q3K-Q4Edge-Q8Dense-MTPQ8-v1-00001-of-00003.gguf",
+    "shards": 3,
+    "mapped_gib": 85.56,
+    "tensors": 781,
+    "params": 237099669632
+  },
+  "command": "./ds4-server -m <shard-1>.gguf --cuda -c 262144 --host 0.0.0.0 --port 8001",
+  "context": 262144,
+  "boot_seconds": 226,
+  "boot_breakdown": {
+    "iq2_aligned_repack_s": 68.2,
+    "iq2_aligned_repack_tensors": 78,
+    "iq2_aligned_repack_gib": 30.16,
+    "q8_aligned_repack_s": 17.1,
+    "q8_aligned_repack_tensors": 345,
+    "q8_aligned_repack_gib": 8.93,
+    "aligned_artifacts_total_s": 85.3,
+    "aligned_artifacts_records": 423
+  },
+  "residency": {
+    "aligned_artifacts_gib": 39.09,
+    "raw_expert_cache_payload_gib": 45.39,
+    "weights_on_device_gib": 84.48,
+    "kv_cache_gib": 12.02,
+    "kv_detail": "12 full-attention layers hold the whole context; 36 sliding layers are fixed at a 128-token window (18 MiB total)",
+    "kv_bytes_per_token": 49152,
+    "graph_workspace_gib": 1.60,
+    "context_buffers_mib": 104.22,
+    "prefill_chunk": 2048
+  },
+  "observed_idle_ready": {
+    "nvtop_gpu_mem_bytes_alloc": 111261696000,
+    "nvtop_gpu_mem_gib": 103.62,
+    "nvtop_field": "processes[].gpu_mem_bytes_alloc",
+    "headroom_gib": 18.01
+  },
+  "observed_under_load": {
+    "note": "sampled while a 33068-token cold prefill was in flight",
+    "mem_free_kb": 4283328,
+    "mem_available_kb": 13307936,
+    "cached_kb": 9914160,
+    "anonpages_kb": 1308960,
+    "process_vmrss_kb": 9472572,
+    "process_rssanon_kb": 561284,
+    "process_rssfile_kb": 8603880
+  },
+  "tooling_caveats": [
+    "nvidia-smi --query-gpu=memory.used reports [N/A] on GB10; use nvtop -s.",
+    "nvtop's per-process field is gpu_mem_bytes_alloc. There is no gpu_memory_usage key in this nvtop (3.3.2) JSON.",
+    "Process VmRSS understates residency: ds4 leaves the 85.56 GiB model mmap unpinned and hands the pages to the CUDA cache, so most of the footprint is CUDA-owned rather than process-anonymous.",
+    "A small-context run is not comparable to a 256K run: two 127-token sessions peak near 90.17 GiB, the 256K server at 103.62 GiB, and the difference is almost entirely the 12.02 GiB KV.",
+    "After a clean process exit the 595.71.05 driver may hold the unified allocation. nvtop showing no process is not proof that system memory came back."
+  ]
+}

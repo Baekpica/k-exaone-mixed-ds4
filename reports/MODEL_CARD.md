@@ -12,8 +12,6 @@ tags: [gguf, k-exaone, exaone, moe, mixed-quantization, mtp, dgx-spark]
 
 # K-EXAONE-236B-A23B — Mixed-Quant GGUF
 
-### The point of this artifact
-
 **A 237-billion-parameter model, structurally intact, resident on one 128 GB
 DGX Spark — with its full 262 144-token context.**
 
@@ -112,10 +110,15 @@ Composition: `calibration.composition.json`.
 | Source model | `LGAI-EXAONE/K-EXAONE-236B-A23B` @ `61e6d578eb102b578e5704e2916ac841df9eca0a` |
 | Source GGUF | `LGAI-EXAONE/K-EXAONE-236B-A23B-GGUF` @ `5bd0394e4f42c00df63e207b9c434387523a6b77` |
 | BF16 GGUF sha256 | `73be2da8653976df036bf9b6466b011f86cb10f78bab30a47025638ec999d3f8` |
-| llama.cpp | `6a32c29a746a2e44de463de647f9f6661eb5086b` (build `b10295`) |
-| Converter | [`k-exaone-mixed-ds4`](https://github.com/Baekpica/k-exaone-mixed-ds4) |
+| llama.cpp (quantizer) | [`ggml-org/llama.cpp`](https://github.com/ggml-org/llama.cpp) @ `6a32c29a746a2e44de463de647f9f6661eb5086b` (build `b10295`) |
+| Converter | [`Baekpica/k-exaone-mixed-ds4`](https://github.com/Baekpica/k-exaone-mixed-ds4) |
+| Serving engine (measured below) | [`Baekpica/ds4`](https://github.com/Baekpica/ds4/tree/feature/exaone-model-loader) @ `8c45d39956f0edcc88834d9ec93dd026ff32f69d` |
+| — upstream engine | [`antirez/ds4`](https://github.com/antirez/ds4) |
+| — DGX Spark port | [`Entrpi/ds4-on-spark`](https://github.com/Entrpi/ds4-on-spark) |
 
-Artifact sha256 and build parameters: `*.manifest.json`.
+Artifact sha256 and build parameters: `*.manifest.json`. Tensor-level
+verification against the recipe (`verify-v1.json`): **781 tensors, 85.558 GiB,
+0 errors, 0 warnings**, matching the BF16 source's own tensor count.
 
 ## Model structure
 
@@ -291,6 +294,77 @@ the same physical pool and the usual tools disagree about who owns it:
   system memory came back — check `free`/`btop` before starting another large
   model, and drop caches if it has not.
 
+### Measured throughput
+
+Greedy (`temperature: 0`), thinking disabled, 128 generated tokens per request,
+one **cold** prompt per measurement over `/v1/chat/completions` with streaming.
+`prefill t/s` is `prompt_tokens / time-to-first-token` — what a client actually
+waits for. `decode t/s` is measured between the first and last content chunk.
+Raw per-request records ship in the converter repository.
+
+| Prompt tokens | Prefill t/s | Decode t/s | Time to first token |
+|---:|---:|---:|---:|
+| 1 451 | 53.0 | 10.51 | 27.4 s |
+| 3 941 | 51.6 | 9.05 | 76.4 s |
+| 8 222 | 47.9 | 7.38 | 171.6 s |
+| 16 376 | 42.3 | 5.42 | 387.1 s |
+
+Both curves are clean enough to fit and extrapolate.
+
+**Decode cost is linear in context depth:**
+
+```text
+ms per token = 86.6 + 0.00597 × context_tokens      (residuals < 0.4 ms)
+```
+
+**Prefill cost is quadratic in prompt length**, because the marginal cost of the
+next 2048 tokens grows linearly with the depth they start at:
+
+```text
+seconds per 2048-token chunk = 37.5 + 0.00145 × depth_tokens   (16 points, residuals < 0.25 s)
+```
+
+Which gives, for depths beyond what was measured directly:
+
+| Context | Marginal prefill t/s | Cold prefill of a full prompt | Decode t/s |
+|---:|---:|---:|---:|
+| 8 192 | 41.5 | 2.7 min | 7.4 (measured) |
+| 32 768 | 24.1 | 16 min | 3.5 |
+| 65 536 | 15.5 | 45 min | 2.1 |
+| 131 072 | 9.0 | 2.3 h | 1.2 |
+| 262 144 | 4.9 | 8.0 h | 0.6 |
+
+### What that means in practice
+
+The 262 144-token context **fits, is allocated, and is resident** — that is a
+memory result and it holds. It is not a throughput result. A cold 256K prompt
+would take hours to prefill on this hardware, and decode at that depth runs
+below 1 token/s. **Useful working depths on one GB10 today are roughly 2K–32K.**
+
+Two things work in the model's favour:
+
+- Every number above is a **cold** prompt, the worst case. ds4 reuses the
+  session KV when a new prompt extends the live checkpoint exactly, which is
+  the normal case for a chat client replaying its history, so multi-turn
+  conversation does not re-pay prefill.
+- Decode is a per-stream figure. Native session batching
+  (`--batched-session N`) raises aggregate throughput across concurrent users.
+
+### Where the time goes
+
+The 12 full-attention layers hold **49 152 bytes of KV per context position**
+(GQA, 8 KV heads × 128 dims, K and V, f16). Decode adds **5.97 µs per context
+position**, which is an effective **8.2 GB/s** on a part with roughly 273 GB/s
+of memory bandwidth — about **3 %**. The depth-dependent part of decode is
+therefore not bandwidth-bound. The `exaone-moe` GQA decode attention path is the
+limiter, and it is the obvious first optimisation target.
+
+For scale: ds4's tuned MLA path on DeepSeek V4 Flash reaches 825 t/s prefill and
+18 t/s decode on this same GB10 (`speed-bench/gb10.csv` in the engine repo).
+That model has far fewer active parameters, so the absolute numbers are not
+comparable — but the *shape* is. MLA prefill is nearly flat with depth
+(825 → 823 t/s from 2K to 64K) where `exaone-moe` roughly halves every 4×.
+
 ### OpenAI-compatible API
 
 `/v1/chat/completions`, `/v1/completions`, `/v1/responses` and `/v1/messages`
@@ -379,6 +453,13 @@ reference's own scores.
 - Evaluation is a 32-prompt fixture set plus the token-fidelity comparison
   above, not a full benchmark suite. Raw results, including the failures, ship
   in the converter repository.
+- **256K is a memory result, not a throughput result.** The context is allocated
+  and resident, but a cold prompt at that depth takes hours to prefill and
+  decodes below 1 token/s. Plan for 2K–32K of working context on one GB10.
+- **Prefill is quadratic and decode is linear in context depth**, both steeper
+  than ds4's MLA models on the same hardware. The measured decode attention
+  path reaches only ~3 % of the device's memory bandwidth, so this is an
+  engine-side limit with real headroom, not a property of the artifact.
 - **The MTP block only runs under ds4**, on the pinned branch and commit above.
   Under llama.cpp it is inert. There is no third runtime that executes it.
 - **MTP is slower than plain decode on GB10** even at 100 % draft acceptance,
