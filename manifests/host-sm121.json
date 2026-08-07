@@ -1,0 +1,60 @@
+{
+  "role": "release serving target (sm_121) -- all representative serving numbers are measured here",
+  "recorded_utc": "2026-08-07T00:46:59Z",
+  "uname": "Linux thinkstationpgx-8abc 6.17.0-1029-nvidia #29-Ubuntu SMP PREEMPT_DYNAMIC Wed Jul  1 00:13:52 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux",
+  "os": "Ubuntu 24.04.4 LTS",
+  "cpu": {
+    "architecture": "aarch64",
+    "cores": 20,
+    "clusters": [
+      "Cortex-X925",
+      "Cortex-A725"
+    ]
+  },
+  "gpu": {
+    "index": "0",
+    "name": "NVIDIA GB10",
+    "compute_cap": "12.1",
+    "driver_version": "595.71.05",
+    "arch_flag": "-gencode arch=compute_121a,code=sm_121a",
+    "compute_capability": "sm_121",
+    "multi_processor_count": 48,
+    "total_global_mem_bytes": 130595164160,
+    "cuda_mem_get_info_total_bytes": 130595164160,
+    "cuda_mem_get_info_free_bytes": 60888420352,
+    "shared_mem_per_block_bytes": 49152,
+    "shared_mem_per_multiprocessor_bytes": 102400,
+    "regs_per_block": 65536,
+    "warp_size": 32,
+    "max_threads_per_block": 1024,
+    "max_threads_per_multiprocessor": 1536,
+    "l2_cache_bytes": 25165824,
+    "memory_bus_width_bits": 256,
+    "unified_addressing": 1,
+    "integrated": 1,
+    "can_map_host_memory": 1,
+    "concurrent_managed_access": 1,
+    "pageable_memory_access": 1,
+    "host_native_atomic_supported": 1,
+    "cooperative_launch": 1
+  },
+  "memory": {
+    "note": "GB10 is a coherent unified-memory SoC: MemTotal and cudaMemGetInfo report the same pool. cuda_mem_get_info_free_bytes at probe time was depressed by reclaimable page cache from an in-flight model download and is NOT the usable ceiling.",
+    "mem_total_bytes": 130595164160,
+    "mem_total_gib": 121.63,
+    "mem_available_bytes": 121070567424,
+    "swap_total_bytes": 17179865088,
+    "cuda_total_bytes": 130595164160
+  },
+  "cuda": {
+    "nvcc": "Cuda compilation tools, release 13.3, V13.3.73",
+    "release": "13.3"
+  },
+  "compiler": {
+    "cc": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+  },
+  "storage": {
+    "/": "/dev/nvme0n1p2  3.6T  1.9T  47%"
+  },
+  "deployment_shape": "1 x DGX Spark, 1 x GB10 / sm_121, 1 x ds4 server process, 1 x model replica"
+}
