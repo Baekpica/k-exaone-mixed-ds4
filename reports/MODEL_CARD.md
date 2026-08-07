@@ -289,10 +289,18 @@ the same physical pool and the usual tools disagree about who owns it:
 - A small-context run is not comparable to a 256K run. The same build with two
   127-token sessions peaks near **90.17 GiB**; the 256K server sits at
   **103.62 GiB**. The difference is almost entirely the 12.02 GiB 256K KV.
-- After a clean process exit the NVIDIA 595.71.05 driver may hold the unified
-  allocation for a while. `nvtop` showing no process is **not** proof that
-  system memory came back — check `free`/`btop` before starting another large
-  model, and drop caches if it has not.
+- **After a clean exit the driver keeps the memory, and that is fine.** With
+  595.71.05, `free` reports roughly 14 GiB available after `ds4-server` exits,
+  and it stays there: the whole of `/proc/meminfo` accounts for only ~17.7 GiB
+  of the 127.5 GiB total, so the ~110 GiB is held by the NVIDIA kernel module,
+  not by page cache. Dropping caches cannot reclaim it — there is nothing in
+  the page cache to drop.
+
+  It also does not need reclaiming. The next CUDA process reuses the driver's
+  pool directly: a second 256K server booted normally in 230 s with
+  `MemAvailable` still showing 14 GiB. **The precondition for booting is that
+  no other `ds4-server` is running — not a `MemAvailable` threshold.** A
+  readiness check that waits for free memory will wait forever.
 
 ### Measured throughput
 
@@ -406,17 +414,43 @@ model, no second weight copy. It is **opt-in and off by default**:
   `mismatch = -1`.
 - Extra runtime state is 0.50 MiB (a 128-row private f16 KV ring).
 - Speculation runs for greedy requests only (`temperature: 0`).
-- **It is slower on this hardware.** On a structured prompt all 12 drafts were
-  accepted and end-to-end throughput was still ~10.5 % *lower* than plain
-  decode: 2429.9 ms of measured MTP work against a 1957.2 ms target-only
-  estimate. The verifier/draft cost, not draft quality, is the problem.
-- An automatic loss quench therefore watches the first 12 verifier cycles and
-  disables speculation for the rest of the session when measured MTP work runs
-  more than 3 % slower. `DS4_EXAONE_MTP_NO_QUENCH=1` defeats it, for
-  measurement only.
+- An automatic loss quench watches the first 12 verifier cycles and disables
+  speculation for the rest of the session when measured MTP work runs more than
+  3 % slower. `DS4_EXAONE_MTP_NO_QUENCH=1` defeats it, for measurement only.
 
-Keep MTP off for serving until a different verifier/draft schedule shows a
-measured gain.
+**It loses at short context and reaches break-even at long context.** Measured
+with the quench defeated, so the whole generation is speculative:
+
+| Context | Draft acceptance | Cycle | MTP ms/token | Plain ms/token | vs plain |
+|---:|---:|---:|---:|---:|---:|
+| 1 451 | 69.3 % | 204.1 ms | 120.5 | 95.6 | +26 % |
+| 7 924 | 44.3 % | 241.7 ms | 167.5 | 133.7 | +25 % |
+| 32 995 | 34.0 % | 390.3 ms | 291.2 | 281.2 | **+4 %** |
+
+The mechanism is a single ratio. A cycle runs one draft pass (~13 ms, roughly
+constant) plus one **two-row** target verify pass. Write **k** for the cost of
+that two-row pass relative to an ordinary one-row decode, and **a** for draft
+acceptance; a cycle commits `1 + a` tokens, so speculation wins exactly when
+
+```text
+k < 1 + a
+```
+
+Measured, k falls with depth — 2.06, 1.76, **1.36** — because the KV read the
+two rows share amortises as the context grows, while acceptance falls — 69.3 %,
+44.3 %, 34.0 % — because the MTP block's private KV ring is only 128 rows and
+starts cold. At 32 995 tokens the two sides are 1.36 against 1.340: break-even
+to within measurement noise, and still improving with depth.
+
+So `k` is the lever, not draft quality. An ideal two-row pass would share the
+weight streaming between its rows and cost `k ≈ 1.05`, at which point even 34 %
+acceptance turns into roughly a 25 % speedup. That k is 1.36 rather than 1.05
+is the same finding as the decode-attention result above: this path is bound by
+per-row cost, not by bandwidth.
+
+**Keep MTP off for serving today** — it is a loss below ~32K and a wash above.
+It becomes worth enabling if either the two-row verify pass gets cheaper or the
+MTP KV is warmed from the prompt instead of starting cold.
 
 ## Measured quality
 
@@ -462,14 +496,16 @@ reference's own scores.
   engine-side limit with real headroom, not a property of the artifact.
 - **The MTP block only runs under ds4**, on the pinned branch and commit above.
   Under llama.cpp it is inert. There is no third runtime that executes it.
-- **MTP is slower than plain decode on GB10** even at 100 % draft acceptance,
-  so it ships off by default and auto-quenches when enabled.
+- **MTP is a loss below ~32K of context and a wash above it**, so it ships off
+  by default and auto-quenches when enabled. The limit is the cost of the
+  two-row verify pass, not draft quality.
 - **MTP does not run under `--batched-session`.** ds4 disables speculative
   decoding whenever native session batching is active, so concurrency > 1 is
   plain decode regardless of the MTP flags.
-- **`nvtop` process disappearance does not mean memory came back.** Driver
-  595.71.05 can retain the unified allocation after a clean exit; verify with
-  `free`/`btop` before loading another large model.
+- **Host memory accounting is not usable as a readiness signal.** Driver
+  595.71.05 retains the unified allocation after a clean exit and does not
+  return it to the kernel. Gate a restart on "no `ds4-server` process", not on
+  `free`.
 
 ## Acknowledgements
 

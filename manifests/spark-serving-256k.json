@@ -78,6 +78,29 @@
     "nvtop's per-process field is gpu_mem_bytes_alloc. There is no gpu_memory_usage key in this nvtop (3.3.2) JSON.",
     "Process VmRSS understates residency: ds4 leaves the 85.56 GiB model mmap unpinned and hands the pages to the CUDA cache, so most of the footprint is CUDA-owned rather than process-anonymous.",
     "A small-context run is not comparable to a 256K run: two 127-token sessions peak near 90.17 GiB, the 256K server at 103.62 GiB, and the difference is almost entirely the 12.02 GiB KV.",
-    "After a clean process exit the 595.71.05 driver may hold the unified allocation. nvtop showing no process is not proof that system memory came back."
-  ]
+    "After a clean process exit the 595.71.05 driver keeps the unified allocation and does not return it to the kernel: /proc/meminfo accounts for only ~17.7 GiB of the 127.5 GiB total, MemAvailable sits near 14 GiB, and it does not recover over time. Dropping caches cannot reclaim it because it is not page cache.",
+    "That retained pool is reusable. A second 256K server booted normally in 230 s with MemAvailable still at 14 GiB. Gate a restart on 'no ds4-server process running', not on a MemAvailable threshold -- a free-memory wait never completes."
+  ],
+  "driver_memory_retention": {
+    "observed_after_clean_exit": {
+      "mem_total_kb": 127534340,
+      "mem_free_kb": 6381152,
+      "mem_available_kb": 15578388,
+      "cached_kb": 9773924,
+      "anonpages_kb": 767228,
+      "slab_kb": 499752,
+      "buffers_kb": 303900,
+      "accounted_gib": 17.7,
+      "unaccounted_gib": 109.8,
+      "largest_process_rss_kb": 635584,
+      "nvtop_processes": [],
+      "stable_over_seconds": 60
+    },
+    "next_boot": {
+      "mem_available_gib_at_boot": 14,
+      "result": "succeeded",
+      "boot_seconds": 230,
+      "conclusion": "the driver pool is handed straight back to the next CUDA context"
+    }
+  }
 }

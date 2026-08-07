@@ -1,0 +1,18 @@
+{
+  "note": "GB10 shares one physical pool between CPU and GPU. The model is a file mapping read in place by the GPU, so it appears as page cache / RssFile and NOT as a CUDA allocation. nvidia-smi reports memory.used as N/A on this part.",
+  "context": 262144,
+  "total_gib": 121.63,
+  "model_mapped_gib": 85.56,
+  "model_resident_gib": 82.37,
+  "kv_cache_gib": 12.02,
+  "kv_detail": "12 full-attention layers hold the whole context; 36 sliding layers are fixed at 128 tokens (18 MiB total)",
+  "process_rss_anon_gib": 0.53,
+  "system_free_gib": 21.5,
+  "cuda_mem_get_info_free_gib": 21.4,
+  "mem_available_gib": 103.6,
+  "mem_available_caveat": "counts the model's page cache as reclaimable; reclaiming it forces the GPU to re-fault from NVMe. Treat system free, not MemAvailable, as the operator headroom.",
+  "cuda_allocation_gib": 12.7,
+  "cuda_allocation_source": "nvtop -s gpu_mem_bytes_alloc (13641367552 bytes); this is KV + graph workspace + CUDA context",
+  "tooling_caveat": "No GPU tool shows the model's footprint on this configuration. nvidia-smi reports memory.used as N/A on GB10; nvtop reports only explicit CUDA allocations (12.70 GiB) and its mem_free of 108.9 GiB, like MemAvailable's 103.6 GiB, counts the model's page cache as free. The model is a file mapping read in place, so its residency is visible only as RssFile / page cache. Genuine headroom is system free: 21.5 GiB.",
+  "graph_workspace_gib": 0.4
+}

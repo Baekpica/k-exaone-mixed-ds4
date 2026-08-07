@@ -130,31 +130,76 @@ Two earlier harness attempts were discarded and are kept for audit:
 | 3 941 | 76.4 s | 51.6 | 9.05 | 103.62 GiB |
 | 8 222 | 171.6 s | 47.9 | 7.38 | 103.62 GiB |
 | 16 376 | 387.1 s | 42.3 | 5.42 | 103.62 GiB |
+| 33 068 | 971 s | 34.0 | 3.56 | 103.62 GiB |
+| 65 662 | 2 700 s | 24.3 | 2.11 | 103.62 GiB |
 
-Cells at 32 768 and 65 536, the MTP pass, and the concurrency passes were still
-running when this section was written; the records land in the same
-`cells.jsonl` files and the tables here are regenerated from them.
-
-### Depth models
-
-Both axes fit tightly enough to extrapolate, which is how the 128K and 256K
-rows below are obtained without paying for them.
+### Depth models, and the fact that they were predictive
 
 ```text
-decode:  ms per token             = 86.634 + 0.005966 x context_tokens   (residuals < 0.4 ms, 4 points)
-prefill: seconds per 2048 tokens  = 37.539 + 0.0014478 x depth_tokens    (residuals < 0.25 s, 16 points)
+decode:  ms per token             = 87.098 + 0.005883 x context_tokens   (6 points, residuals < 1.0 ms)
+prefill: seconds per 2048 tokens  = 37.303 + 0.0014555 x depth_tokens    (61 points, residuals < 0.9 s)
 ```
+
+Both models were fitted on the shallow cells and then **tested against cells
+that had not run yet**:
+
+| Cell | Predicted | Measured | Error |
+|---|---:|---:|---:|
+| decode @ 32 768 | 3.58 t/s | 3.56 t/s | 0.6 % |
+| decode @ 65 536 | 2.12 t/s | 2.11 t/s | 0.5 % |
+| cold prefill @ 32 768 | 953 s | ~971 s | 1.9 % |
+| cold prefill to 40 960 | 1 311 s | 1 308.8 s | 0.2 % |
+| cold prefill @ 65 536 | 2 669 s | ~2 700 s | 1.2 % |
+
+That is what licenses the two rows below that were never run:
 
 | Context | Marginal prefill t/s | Cold prefill | Decode t/s |
 |---:|---:|---:|---:|
-| 8 192 | 41.5 | 2.7 min | 7.38 (measured) |
-| 32 768 | 24.1 | 15.9 min | 3.54 |
-| 65 536 | 15.5 | 44.5 min | 2.09 |
-| 131 072 | 9.0 | 2.3 h | 1.15 |
-| 262 144 | 4.9 | 8.0 h | 0.61 |
+| 32 768 | 24.1 | 15.9 min | 3.56 (measured) |
+| 65 536 | 15.4 | 44.5 min | 2.11 (measured) |
+| 131 072 | 9.0 | 2.3 h | 1.17 |
+| 262 144 | 4.9 | 8.1 h | 0.61 |
 
-The 32 768 and 65 536 cold-prefill predictions are tested directly by the
-running sweep, which is what makes the 131 072 and 262 144 rows credible.
+### Results — MTP, single stream, quench defeated
+
+`DS4_EXAONE_MTP_NO_QUENCH=1`, so the whole 128-token generation is speculative.
+
+| Context | Acceptance | Cycle | MTP ms/token | Plain ms/token | vs plain | k = 2-row / 1-row |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 451 | 69.3 % | 204.1 ms | 120.5 | 95.6 | +26 % | 2.06 |
+| 7 924 | 44.3 % | 241.7 ms | 167.5 | 133.7 | +25 % | 1.76 |
+| 32 995 | 34.0 % | 390.3 ms | 291.2 | 281.2 | +4 % | 1.36 |
+
+This **changes the item-3 conclusion**, which was drawn at 64 tokens of context
+on a structured integer prompt and reported 100 % acceptance with a 10.5 % loss.
+On natural prose, acceptance is much lower and falls with depth — but the loss
+falls faster, and at 33K MTP is at break-even.
+
+A cycle runs one draft pass (~13 ms, roughly constant) plus one **two-row**
+target verify pass. With `k` the cost of that two-row pass relative to an
+ordinary one-row decode and `a` the acceptance rate, a cycle commits `1 + a`
+tokens, so speculation wins exactly when
+
+```text
+k < 1 + a
+```
+
+| Context | k | 1 + a | verdict |
+|---:|---:|---:|---|
+| 1 451 | 2.06 | 1.693 | lose |
+| 7 924 | 1.76 | 1.443 | lose |
+| 32 995 | **1.36** | **1.340** | break-even |
+
+`k` falls with depth because the KV the two rows share amortises; `a` falls
+because the MTP block's private KV ring is 128 rows and starts cold. They
+converge at ~33K.
+
+**`k` is the lever, not draft quality.** A two-row pass that shared its weight
+streaming between rows would cost `k ≈ 1.05`; at that k, even 34 % acceptance
+is a ~25 % speedup. That k is 1.36 instead is the same defect as the decode
+attention result in *Findings*: this path is bound by per-row cost, not by
+bandwidth. The second lever is acceptance — warming the MTP KV from the prompt
+instead of starting cold should recover much of the 69 % seen at shallow depth.
 
 ### Cells not run, and why
 
@@ -250,7 +295,39 @@ measure). The SFT calibration corpus is a multiple-choice set, so slices ending
 in `"Answer: "` make the model emit a single letter and stop. Both are recorded
 in `scratch/matrix/A-plain-256k-c1/bench-abandoned-*`.
 
-### 5. `nvtop`'s per-process field name
+### 5. The handoff's `clear_cache` precondition is wrong, and the reason matters
+
+The previous handoff instructed the operator to run `clear_cache` and confirm
+~119 GiB free before another large CUDA model boot. On this build that
+instruction cannot be satisfied and does not need to be.
+
+After `ds4-server` exits cleanly — no process in `pgrep`, none in `nvtop` —
+`MemAvailable` sits at **14 GiB** and stays there. Sampled every 5 s for a
+minute it did not move. The full `/proc/meminfo` accounts for only about
+**17.7 GiB** of the 127.5 GiB total:
+
+```text
+MemFree 6.38  Cached 9.77  AnonPages 0.77  Slab 0.50  Buffers 0.30   (GiB)
+largest process RSS: 0.6 GiB   nvtop processes: []
+```
+
+The missing ~110 GiB is held by the NVIDIA kernel module and appears in no
+`/proc/meminfo` counter. **`clear_cache` is `drop_caches`, which frees page
+cache — and there is only 9.77 GiB of page cache to free.** It cannot recover
+this memory.
+
+It also does not need to. The retained pool is handed straight back to the next
+CUDA context: the phase-B server booted normally, in **230 s**, with
+`MemAvailable` still reporting 14 GiB. The earlier handoff's advice was correct
+for the *pre-aligned-artifact* build, where the weights were page-cache-resident
+and `drop_caches` did move them.
+
+**The correct precondition for a restart is that no other `ds4-server` process
+is running.** A readiness gate that waits for `MemAvailable` to recover blocks
+forever; `run_phase.sh` in `harness/` was changed to gate on the process and
+treat free memory as advisory only.
+
+### 6. `nvtop`'s per-process field name
 
 The memory sampler must read `processes[].gpu_mem_bytes_alloc`. There is no
 `gpu_memory_usage` key in nvtop 3.3.2's `-s` JSON, and `nvidia-smi` reports
