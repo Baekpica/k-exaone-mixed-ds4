@@ -118,3 +118,26 @@ drift from defects at this operating point.
 | identity + widths + mixed rides | `scratch/matrix/J3-rowbatch-short/` |
 | 16K twin | `scratch/matrix/J4-batched8-c16k/` |
 | nsys attributions | `scratch/matrix/rowbatch-w8*.nsys-rep`, `*-kernels.txt` |
+
+## Addendum, same night: tensor-core prefill attention (`a0033cb`)
+
+Next-round item 1 did not wait for a next round.  Q·Kᵀ and P·V moved to
+m16n8k16 HMMA with flash-attention online softmax (`cuda/mmq/ds4_fattn.cu`),
+which is what the tiled variant's wash pointed at: the shuffle reduction was
+the bound, so it is gone.  Kernel suite: f16-score-class agreement with the
+CPU mirror, 22.2× the anchor on a deep span.  End to end, 256K server, cold
+prompts:
+
+| depth | prefill before | after | TTFT |
+|---:|---:|---:|---:|
+| 1.4K | 52.8 | 54.8 | 25 s |
+| 7.8K | 47.3 | **55.9** | 164 → 139 s |
+| 33.9K | 32.2 | **54.4** | **1 053 → 638 s** |
+
+Prefill is flat at ~55 t/s through the measured range; the quadratic term
+survives at ~1/22 its old coefficient, putting a cold 256K at a projected
+~1.6 h (from ~9 h).  Deep-context serving on this box is now paced by linear
+weight streaming, not by either attention kernel.  One porting note for the
+record: `mma.cuh`'s fragment index helpers read `threadIdx.x` raw and are
+only meaningful in 32-thread blocks — a multi-warp consumer must derive
+lane-based coordinates, and the sanitizer is the tool that says so.

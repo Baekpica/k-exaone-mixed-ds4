@@ -112,7 +112,7 @@ Composition: `calibration.composition.json`.
 | BF16 GGUF sha256 | `73be2da8653976df036bf9b6466b011f86cb10f78bab30a47025638ec999d3f8` |
 | llama.cpp (quantizer) | [`ggml-org/llama.cpp`](https://github.com/ggml-org/llama.cpp) @ `6a32c29a746a2e44de463de647f9f6661eb5086b` (build `b10295`) |
 | Converter | [`Baekpica/k-exaone-mixed-ds4`](https://github.com/Baekpica/k-exaone-mixed-ds4) |
-| Serving engine (measured below) | [`Baekpica/ds4`](https://github.com/Baekpica/ds4/tree/feature/exaone-model-loader) @ `d35f0dd60af73c22dbd056fdad2eb616781fa6bd` |
+| Serving engine (measured below) | [`Baekpica/ds4`](https://github.com/Baekpica/ds4/tree/feature/exaone-model-loader) @ `a0033cb130838867408b4d3d64f641fa673c42f1` |
 | — upstream engine | [`antirez/ds4`](https://github.com/antirez/ds4) |
 | — DGX Spark port | [`Entrpi/ds4-on-spark`](https://github.com/Entrpi/ds4-on-spark) |
 
@@ -202,7 +202,7 @@ driver 595.71.05, CUDA 13.3, Linux 6.17.
 |---|---|
 | Engine | [`Baekpica/ds4`](https://github.com/Baekpica/ds4/tree/feature/exaone-model-loader) |
 | Branch | `feature/exaone-model-loader` |
-| Commit | `d35f0dd60af73c22dbd056fdad2eb616781fa6bd` |
+| Commit | `a0033cb130838867408b4d3d64f641fa673c42f1` |
 | Weights | [`Baekpica/K-EXAONE-236B-A23B-Mixed-Quant-GGUF`](https://huggingface.co/Baekpica/K-EXAONE-236B-A23B-Mixed-Quant-GGUF), variant **v1** |
 | Converter / reports | [`Baekpica/k-exaone-mixed-ds4`](https://github.com/Baekpica/k-exaone-mixed-ds4) |
 
@@ -238,7 +238,7 @@ the single most common way to get wrong kernel results here.
 ```bash
 git clone https://github.com/Baekpica/ds4
 cd ds4
-git checkout d35f0dd60af73c22dbd056fdad2eb616781fa6bd
+git checkout a0033cb130838867408b4d3d64f641fa673c42f1
 make cuda-spark
 ```
 
@@ -352,48 +352,50 @@ Raw per-request records ship in the converter repository.
 
 | Prompt tokens | Prefill t/s | Decode t/s | Time to first token |
 |---:|---:|---:|---:|
-| 697 | 51.8 | 10.87 | 13.5 s |
-| 1 896 | 52.8 | 10.17 | 35.9 s |
-| 8 087 | 47.3 | **10.03** | 171.0 s |
-| 33 343 | 32.2 | **8.73** | 1 035 s |
+| 1 387 | 54.8 | 10.53 | 25.3 s |
+| 7 752 | **55.9** | 10.12 | 139 s |
+| 33 914 | **54.4** | **8.63** | **638 s** |
 
-Decode barely falls with depth any more.  The engine's flash-decode split
-(2026-08-08) rebuilt the deep-context decode path: the depth term dropped from
-5.88 to 0.61 µs per context position, so a 32K-deep session decodes at 8.7 t/s
-where it managed 3.5 before.  An earlier version of this card said the decode
-attention path ran at ~3 % of memory bandwidth; that headroom is now spent.
+Neither curve bends much any more.  Two engine rounds on 2026-08-08 rebuilt
+both attention paths: flash-decode split KV took the decode depth term from
+5.88 to 0.61 µs per position, and tensor-core (HMMA) prefill attention removed
+the quadratic bend at measured depths — prefill is flat at ~55 t/s from 1K to
+34K where it used to fall from 53 to 32.  A day earlier this card reported a
+33.9K prompt at 1 053 s to first token; it is 638 s now, and the remaining
+cost is dominated by the *linear* weight-streaming term.
 
 **Decode cost is linear in context depth, and nearly flat:**
 
 ```text
-ms per token = 94.5 + 0.00061 × context_tokens      (4 cells, residuals < 3 ms)
+ms per token = 94.5 + 0.00061 × context_tokens      (residuals < 3 ms)
 ```
 
-**Prefill cost is quadratic in prompt length** and is now the one wall left:
-
-```text
-TTFT seconds = 0.0180 × N + 3.92e-7 × N²            (residuals < 0.7 s)
-```
-
-Extrapolating decode beyond the measured 33K (prefill from the same fit):
+**Prefill** at measured depths is ~55 t/s flat; the attention term that made
+it quadratic survives at roughly 1/22 of its old coefficient, so it re-emerges
+only far beyond the measured range:
 
 | Context | Cold prefill of a full prompt | Decode t/s |
 |---:|---:|---:|
-| 8 192 | 2.6 min (measured) | 10.0 (measured) |
-| 32 768 | 17 min (measured) | 8.7 (measured) |
-| 65 536 | 47 min | 7.4 |
-| 131 072 | 2.3 h | 5.7 |
-| 262 144 | 8.8 h | 3.9 |
+| 8 192 | 2.3 min (measured) | 10.1 (measured) |
+| 32 768 | 10.6 min (measured) | 8.6 (measured) |
+| 65 536 | ~21 min (projected) | 7.4 (projected) |
+| 131 072 | ~45 min (projected) | 5.7 (projected) |
+| 262 144 | ~1.6 h (projected) | 3.9 (projected) |
+
+Projections carry the measured linear term plus the surviving attention
+coefficient; nothing beyond 34K has been measured directly yet.
 
 ### What that means in practice
 
-The 262 144-token context **fits, is allocated, and is resident**, and decode
-now stays useful an order of magnitude deeper than it used to — 8.7 t/s
-measured at 33K, ~5.7 t/s extrapolated at 128K. What has not moved is the cost
-of getting there cold: prefill is quadratic, a 33K prompt takes 17 minutes and
-a full 256K one would take ~9 hours. **The working-depth limit on one GB10 is
-now set by how long a cold prefill you will tolerate — not by decode.**
-Warm continuations skip it (below).
+The 262 144-token context **fits, is allocated, and is resident**, and both
+halves of the depth cost have now been rebuilt: decode holds 8.6 t/s at a
+measured 34K, and a cold 33.9K prompt reaches first token in 638 s — a day
+earlier it was 1 053 s, and two days earlier decode at that depth ran below
+4 t/s. A full cold 256K prefill projects to ~1.6 h (from ~9 h). **Deep
+contexts on one GB10 are now paced by the linear cost of streaming 13 GiB of
+active weights per 55 tokens — the same wall every 237B-class model has —
+rather than by either attention kernel.** Warm continuations skip the prefill
+entirely (below).
 
 **Multi-turn chat reuses the prefix; a cold prompt does not.** A continuation
 resumes at the point where it diverges from what the session already holds, so
@@ -584,11 +586,11 @@ reference's own scores.
   at a measured 33K and ~4 t/s extrapolated at the full context, but a cold
   256K prefill still takes ~9 hours. Deep contexts are practical exactly when
   they are reached warm — through prefix reuse — rather than cold.
-- **Prefill is quadratic in context depth and is the one wall left.** The
-  decode-side headroom an earlier version of this card described is spent: the
-  flash-decode split brought the depth term from 5.88 to 0.61 µs per position.
-  The prefill attention kernel keeps the exact one-block form; a tiled variant
-  measured a wash and a tensor-core revision is the known next step.
+- **Both attention depth terms are now near their floors.** Flash-decode
+  split KV (decode: 5.88 → 0.61 µs/position) and tensor-core prefill
+  attention (prefill flat at ~55 t/s through 34K) leave deep-context cost
+  paced by linear weight streaming. Depths beyond 34K are projected, not
+  measured.
 - **The MTP block only runs under ds4**, on the pinned branch and commit above.
   Under llama.cpp it is inert. There is no third runtime that executes it.
 - **MTP is a mild loss (3–25 % by depth and corpus)**, so it ships off by
