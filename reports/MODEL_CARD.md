@@ -112,7 +112,7 @@ Composition: `calibration.composition.json`.
 | BF16 GGUF sha256 | `73be2da8653976df036bf9b6466b011f86cb10f78bab30a47025638ec999d3f8` |
 | llama.cpp (quantizer) | [`ggml-org/llama.cpp`](https://github.com/ggml-org/llama.cpp) @ `6a32c29a746a2e44de463de647f9f6661eb5086b` (build `b10295`) |
 | Converter | [`Baekpica/k-exaone-mixed-ds4`](https://github.com/Baekpica/k-exaone-mixed-ds4) |
-| Serving engine (measured below) | [`Baekpica/ds4`](https://github.com/Baekpica/ds4/tree/feature/exaone-model-loader) @ `a0033cb130838867408b4d3d64f641fa673c42f1` |
+| Serving engine (measured below) | [`Baekpica/ds4`](https://github.com/Baekpica/ds4/tree/feature/exaone-model-loader) @ `b2faf06f1ce2702efa53ac17145b1f56d3fb23b8` |
 | — upstream engine | [`antirez/ds4`](https://github.com/antirez/ds4) |
 | — DGX Spark port | [`Entrpi/ds4-on-spark`](https://github.com/Entrpi/ds4-on-spark) |
 
@@ -202,12 +202,13 @@ driver 595.71.05, CUDA 13.3, Linux 6.17.
 |---|---|
 | Engine | [`Baekpica/ds4`](https://github.com/Baekpica/ds4/tree/feature/exaone-model-loader) |
 | Branch | `feature/exaone-model-loader` |
-| Commit | `a0033cb130838867408b4d3d64f641fa673c42f1` |
+| Commit | `b2faf06f1ce2702efa53ac17145b1f56d3fb23b8` |
 | Weights | [`Baekpica/K-EXAONE-236B-A23B-Mixed-Quant-GGUF`](https://huggingface.co/Baekpica/K-EXAONE-236B-A23B-Mixed-Quant-GGUF), variant **v1** |
 | Converter / reports | [`Baekpica/k-exaone-mixed-ds4`](https://github.com/Baekpica/k-exaone-mixed-ds4) |
 
-> **Pin at or after `920427a`, and do not use an earlier commit for long
-> prompts.** Before it, the `exaone-moe` sliding layers allocated a KV ring
+> **Pin `b2faf06` for the measurements on this page. Do not use anything
+> earlier than `920427a` for long prompts.** Before `920427a`, the
+> `exaone-moe` sliding layers allocated a KV ring
 > exactly the width of the attention window while prefill ran 2 048-token
 > chunks. A chunk writes every row's KV before any row attends, so the ring was
 > left holding only the chunk's last 128 positions and all but the final row of
@@ -238,7 +239,7 @@ the single most common way to get wrong kernel results here.
 ```bash
 git clone https://github.com/Baekpica/ds4
 cd ds4
-git checkout a0033cb130838867408b4d3d64f641fa673c42f1
+git checkout b2faf06f1ce2702efa53ac17145b1f56d3fb23b8
 make cuda-spark
 ```
 
@@ -259,16 +260,16 @@ alignment repack. Give the machine ~119 GiB free before starting: the loader
 peaks higher than its steady state.
 
 **4 — call it.** Any OpenAI client works; point `base_url` at
-`http://<host>:8001/v1` and use any model name (`/v1/models` advertises
-`deepseek-v4-flash` and `deepseek-v4-pro`; both serve the loaded GGUF).
+`http://<host>:8001/v1`. `/v1/models` advertises the loaded model as
+`k-exaone-236b-a23b` (thinking on by default) and
+`k-exaone-236b-a23b-chat` (direct answer).
 
 ```bash
 curl -sS http://127.0.0.1:8001/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -d '{
-    "model": "K-EXAONE-236B-A23B",
+    "model": "k-exaone-236b-a23b-chat",
     "messages": [{"role": "user", "content": "대한민국의 수도는 어디인가요?"}],
-    "thinking": {"type": "disabled"},
     "temperature": 0,
     "max_tokens": 64
   }'
@@ -279,18 +280,12 @@ decode-ready requests (concurrency); `--exaone-mtp` / `--exaone-mtp-timing`
 enable the MTP path; `--kv-disk-dir` enables disk KV checkpoints — **not**
 recommended for this model, keep K-EXAONE on in-memory KV.
 
-**Budget `--batched-session` carefully.** Each resident session costs its own KV
-*and* its own 1.60 GiB graph workspace — the workspace is not shared across
-slots — so `N` sessions cost `N × (KV + 1.60 GiB)`. With 84.48 GiB of weights
-resident there is roughly 35 GiB to spend:
-
-| ctx per slot | KV/slot | + workspace | 8 slots | observed total |
-|---:|---:|---:|---:|---:|
-| 16 384 | 0.75 GiB | 2.35 GiB | 18.8 GiB | **108.8 GiB**, 9 GiB free |
-| 40 960 | 1.89 GiB | 3.49 GiB | 27.9 GiB | **117.9 GiB**, 0.5 GiB free — too tight |
-
-`--batched-session 8 -c 40960` boots but leaves the machine with half a gigabyte
-of headroom. Prefer more context per slot or fewer slots, not both.
+**Budget `--batched-session` carefully.** Each resident session owns its KV and
+small session state, but the **1.60 GiB prefill graph workspace is shared once
+per server**, not multiplied per slot. The previous per-slot-workspace formula
+is obsolete. `--batched-session 8 -c 40960` has been boot-validated with about
+8.4 GiB free on this host; still leave an operational margin because CUDA's
+retained unified-memory pool makes simple host-RAM accounting misleading.
 
 ### Resident memory at `-c 262144`
 
@@ -304,7 +299,7 @@ additions — the mapping's pages are handed over, not duplicated:
 | Raw expert cache payload | 45.39 GiB |
 | **Weights resident on device** | **84.48 GiB** |
 | KV cache, 262 144 tokens (12 full + 36 sliding layers) | 12.30 GiB |
-| Graph workspace | 1.60 GiB |
+| Graph workspace (shared across sessions) | 1.60 GiB |
 | Context buffers (`prefill_chunk` 2048) | 104.22 MiB |
 | **`nvtop` GPU Mem, idle and ready at 256K** | **103.95 GiB / 121.6 GiB** |
 
@@ -346,56 +341,39 @@ the same physical pool and the usual tools disagree about who owns it:
 
 Greedy (`temperature: 0`), thinking disabled, 128 generated tokens per request,
 one **cold** prompt per measurement over `/v1/chat/completions` with streaming.
-`prefill t/s` is `prompt_tokens / time-to-first-token` — what a client actually
-waits for. `decode t/s` is measured between the first and last content chunk.
-Raw per-request records ship in the converter repository.
+Every frontier uses a disjoint corpus slice. `Prefilled` excludes the tiny
+template prefix already resident in the two short cells; `prefill t/s` is
+`prefilled / TTFT`. `decode t/s` is measured between the first and last content
+chunk.
 
-| Prompt tokens | Prefill t/s | Decode t/s | Time to first token |
-|---:|---:|---:|---:|
-| 1 387 | 54.8 | 10.53 | 25.3 s |
-| 7 752 | **55.9** | 10.12 | 139 s |
-| 33 914 | **54.4** | **8.63** | **638 s** |
+| Frontier | Prompt | Prefilled | Prefill t/s | Decode t/s | TTFT |
+|---:|---:|---:|---:|---:|---:|
+| 2K | 1 451 | 1 387 | **269.6** | 10.75 | 5.14 s |
+| 8K | 7 925 | 7 923 | **276.5** | 10.46 | 28.66 s |
+| 32K | 31 300 | 31 300 | **245.0** | 9.00 | 127.78 s |
+| 64K | 64 663 | 64 663 | **207.3** | 7.27 | 311.90 s |
 
-Neither curve bends much any more.  Two engine rounds on 2026-08-08 rebuilt
-both attention paths: flash-decode split KV took the decode depth term from
-5.88 to 0.61 µs per position, and tensor-core (HMMA) prefill attention removed
-the quadratic bend at measured depths — prefill is flat at ~55 t/s from 1K to
-34K where it used to fall from 53 to 32.  A day earlier this card reported a
-33.9K prompt at 1 053 s to first token; it is 638 s now, and the remaining
-cost is dominated by the *linear* weight-streaming term.
+The previous published engine was roughly 54–56 t/s through 34K. The measured
+31.3K cell is now 4.5x faster, and 64K is measured rather than projected. The
+2K/8K rows were remeasured on the pinned commit after server warm-up. The
+32K/64K cells were taken on the final optimization candidate immediately
+before a safety-only invalid-token guard was added to batch embedding; valid
+token IDs use the same numerical path. Raw records and exact methodology are
+in `reports/DGX-SPARK-PREFILL-OPT-2026-08-09.md`.
 
-**Decode cost is linear in context depth, and nearly flat:**
-
-```text
-ms per token = 94.5 + 0.00061 × context_tokens      (residuals < 3 ms)
-```
-
-**Prefill** at measured depths is ~55 t/s flat; the attention term that made
-it quadratic survives at roughly 1/22 of its old coefficient, so it re-emerges
-only far beyond the measured range:
-
-| Context | Cold prefill of a full prompt | Decode t/s |
-|---:|---:|---:|
-| 8 192 | 2.3 min (measured) | 10.1 (measured) |
-| 32 768 | 10.6 min (measured) | 8.6 (measured) |
-| 65 536 | ~21 min (projected) | 7.4 (projected) |
-| 131 072 | ~45 min (projected) | 5.7 (projected) |
-| 262 144 | ~1.6 h (projected) | 3.9 (projected) |
-
-Projections carry the measured linear term plus the surviving attention
-coefficient; nothing beyond 34K has been measured directly yet.
+Decode still declines with context depth because 12 full-attention layers read
+the growing KV history. Cold 256K prefill has **not** been measured end to end;
+this card intentionally no longer publishes a 256K time extrapolated from the
+old 55 t/s kernel stack.
 
 ### What that means in practice
 
-The 262 144-token context **fits, is allocated, and is resident**, and both
-halves of the depth cost have now been rebuilt: decode holds 8.6 t/s at a
-measured 34K, and a cold 33.9K prompt reaches first token in 638 s — a day
-earlier it was 1 053 s, and two days earlier decode at that depth ran below
-4 t/s. A full cold 256K prefill projects to ~1.6 h (from ~9 h). **Deep
-contexts on one GB10 are now paced by the linear cost of streaming 13 GiB of
-active weights per 55 tokens — the same wall every 237B-class model has —
-rather than by either attention kernel.** Warm continuations skip the prefill
-entirely (below).
+The 262 144-token context **fits, is allocated, and is resident**. A cold 31.3K
+prompt now reaches first token in 127.8 s and a cold 64.7K prompt in 311.9 s;
+decode is 9.0 and 7.3 t/s at those depths. The request-only profile now puts
+prefill attention at 2.6% and QK norm/RoPE at 0.6%. The dominant work is the
+quantized MoE and dense stack — IQ2 gate/up, Q3 down, dense/shared Q8, then Q4.
+Warm continuations still skip almost all of the prefill entirely (below).
 
 **Multi-turn chat reuses the prefix; a cold prompt does not.** A continuation
 resumes at the point where it diverges from what the session already holds, so
@@ -464,23 +442,31 @@ and what remains splits between the depth-independent floor (~94 ms/token,
 streaming the active weights, near the roofline) and the last ~3× of the
 attention read.
 
-Prefill keeps the one-block-per-(token, head) attention kernel and its
-quadratic term is now the dominant cost of deep contexts. For scale: ds4's
-tuned MLA path on DeepSeek V4 Flash reaches 825 t/s prefill on this same GB10
-and is nearly flat with depth, where `exaone-moe` prefill roughly halves every
-4× — that gap is the open kernel problem, not decode.
+The request-only Nsight slice, immediately before the final 64-column-tail
+increment, is now: IQ2 aligned gate/up D2R **30.66%**, Q3 routed down
+**23.65%**, dense/shared Q8 **14.97%**, Q4 routed **10.77%**, batch embedding
+4.90%, prefill attention 2.62%, and QK norm/RoPE 0.60%. That is the next-work
+order; attention is no longer the first-order bottleneck.
+
+For scale, the cited [Spark Arena vLLM run](https://spark-arena.com/benchmark/c3980cfa-8700-49b7-ad17-d55c98fd88a4)
+reports about 1,233 t/s at pp2048, but it is a different 180B
+DeepSeek-V4-Flash checkpoint using MXFP4 experts, FP8 MLA KV, an 8,192-token
+batch budget, async scheduling, prefix cache, graphs/compilation, a custom
+model modification, and MTP. It is a useful ceiling, not an apples-to-apples
+runtime comparison with this 237B top-8 GQA IQ2/Q3/Q4 GGUF.
 
 ### OpenAI-compatible API
 
 `/v1/chat/completions`, `/v1/completions`, `/v1/responses` and `/v1/messages`
-are served; `/v1/models` advertises the `deepseek-v4-flash` and
-`deepseek-v4-pro` aliases, both of which serve the loaded GGUF. There is no
+are served; `/v1/models` advertises `k-exaone-236b-a23b` and
+`k-exaone-236b-a23b-chat`. The bare ID keeps thinking on by default; the chat
+ID answers directly. Both serve the same loaded GGUF. There is no
 llama.cpp-style `/health` or `/props` — probe `/v1/models` plus a real
 completion. Validated on this host, greedy (`temperature: 0`):
 
 | Check | Result |
 |---|---|
-| `GET /v1/models` | serves both aliases |
+| `GET /v1/models` | serves the bare and `-chat` K-EXAONE IDs |
 | non-streaming chat completion | `finish_reason=stop`, correct Korean answer, usage populated |
 | streaming chat completion | SSE chunks, `finish_reason`, and — with `stream_options: {"include_usage": true}` — a final usage chunk |
 | streamed text == non-streamed text | identical under `temperature: 0` |
@@ -491,8 +477,9 @@ Two behaviours worth knowing before you benchmark:
 
 - Thinking is **on by default** for chat requests. With `max_tokens: 64` the
   budget is spent inside `reasoning_content` and `content` comes back empty —
-  that is correct, not a hang. Send `"thinking": {"type": "disabled"}` (or
-  `"think": false`) for short factual answers.
+  that is correct, not a hang. Select `k-exaone-236b-a23b-chat`, or send
+  `"thinking": {"type": "disabled"}` / `"think": false`, for short factual
+  answers.
 - Streaming usage follows the OpenAI rule: no `stream_options.include_usage`,
   no usage chunk.
 
@@ -582,15 +569,14 @@ reference's own scores.
 - Evaluation is a 32-prompt fixture set plus the token-fidelity comparison
   above, not a full benchmark suite. Raw results, including the failures, ship
   in the converter repository.
-- **256K remains gated by cold prefill, not decode.** Decode now holds 8.7 t/s
-  at a measured 33K and ~4 t/s extrapolated at the full context, but a cold
-  256K prefill still takes ~9 hours. Deep contexts are practical exactly when
-  they are reached warm — through prefix reuse — rather than cold.
-- **Both attention depth terms are now near their floors.** Flash-decode
-  split KV (decode: 5.88 → 0.61 µs/position) and tensor-core prefill
-  attention (prefill flat at ~55 t/s through 34K) leave deep-context cost
-  paced by linear weight streaming. Depths beyond 34K are projected, not
-  measured.
+- **The full 256K context fits, but cold 256K prefill is not measured.** The
+  deepest cold cell here is 64,663 tokens at 207.3 prefill t/s and 7.27 decode
+  t/s. Prefix reuse remains the practical way to reach deep contexts without
+  paying the whole cold admission cost.
+- **The remaining prefill gap is mainly quantized linear algebra.** In the
+  request-only profile, IQ2 gate/up + Q3 down + dense/shared Q8 + Q4 account
+  for about 80% of GPU kernel time; prefill attention is 2.6% and QK
+  norm/RoPE is 0.6%.
 - **The MTP block only runs under ds4**, on the pinned branch and commit above.
   Under llama.cpp it is inert. There is no third runtime that executes it.
 - **MTP is a mild loss (3–25 % by depth and corpus)**, so it ships off by

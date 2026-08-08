@@ -74,16 +74,16 @@ tensor table before anything is written.
   The CPU reference forward still validates against llama.cpp on the same model:
   same greedy token, `attn_norm` exact to four decimals.
 - **DGX Spark** — measured on GB10 / `sm_121`. The 256K server boots in ~4 min
-  and sits at **103.95 GiB of 121.6 GiB** resident; the OpenAI-compatible API is
-  validated for streaming, thinking-mode `reasoning_content` separation, and
-  cross-request isolation. A multi-turn continuation resumes at the point it
-  diverges from the live session, so turn 2 of a 7K-token chat costs **5.9 s**
-  rather than 143.9 s. Flash-decode keeps deep decode fast (**8.7 t/s at a
-  measured 33K**, ~4 t/s extrapolated at full context), and cross-session row
-  batching lifts concurrent serving to **18.5 t/s aggregate at 8 streams**.
-  MTP runs, is a mild loss (3–25 % by depth), and ships off by default with an
-  automatic loss quench.
-- **Pin ds4 at or after `d35f0dd`** (the serving-optimization round; `920427a`
+  and sits at **103.95 GiB of 121.6 GiB** resident. Cold chunked prefill now
+  reaches **269.6 t/s at 2K, 276.5 at 8K, 245.0 at 32K, and 207.3 at 64K**;
+  64K is measured, not projected. Decode remains 10.8–7.3 t/s across those
+  depths. The API advertises `k-exaone-236b-a23b` (thinking) and
+  `k-exaone-236b-a23b-chat` (direct answer). A multi-turn continuation still
+  resumes at the divergence point, and cross-session row batching reaches
+  **18.5 t/s aggregate at 8 streams**. MTP remains default-off. See
+  `reports/DGX-SPARK-PREFILL-OPT-2026-08-09.md` for A/Bs, profile, rollback
+  switches, and raw-evidence paths.
+- **Pin ds4 at or after `b2faf06`** (the chunked-prefill round; `920427a`
   is the minimum for correct long prompts). Older than `920427a`, the
   `exaone-moe` sliding KV ring was sized to the attention window alone while prefill ran 2 048-token
   chunks, so all but the last row of each chunk attended over overwritten

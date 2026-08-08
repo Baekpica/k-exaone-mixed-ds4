@@ -1,5 +1,10 @@
 # K-EXAONE Mixed-Quant GGUF + ds4 — Work Plan
 
+> **Historical planning snapshot.** The DGX Spark stage described here as
+> future work is complete. For current pins, serving commands, and measured
+> performance, start with `reports/DGX-SPARK-HANDOFF.md` and
+> `reports/DGX-SPARK-PREFILL-OPT-2026-08-09.md`.
+
 Scope for this session: **everything up to, but not including, the DGX Spark
 stage.** All work runs on the RTX PRO 6000 (`sm_120`) development host. Every
 DGX-Spark-only step is prepared and packaged as a handoff bundle rather than
