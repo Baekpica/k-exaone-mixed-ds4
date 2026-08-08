@@ -112,7 +112,7 @@ Composition: `calibration.composition.json`.
 | BF16 GGUF sha256 | `73be2da8653976df036bf9b6466b011f86cb10f78bab30a47025638ec999d3f8` |
 | llama.cpp (quantizer) | [`ggml-org/llama.cpp`](https://github.com/ggml-org/llama.cpp) @ `6a32c29a746a2e44de463de647f9f6661eb5086b` (build `b10295`) |
 | Converter | [`Baekpica/k-exaone-mixed-ds4`](https://github.com/Baekpica/k-exaone-mixed-ds4) |
-| Serving engine (measured below) | [`Baekpica/ds4`](https://github.com/Baekpica/ds4/tree/feature/exaone-model-loader) @ `920427ac124078af021a0736792d2115b1d00bc2` |
+| Serving engine (measured below) | [`Baekpica/ds4`](https://github.com/Baekpica/ds4/tree/feature/exaone-model-loader) @ `d35f0dd60af73c22dbd056fdad2eb616781fa6bd` |
 | — upstream engine | [`antirez/ds4`](https://github.com/antirez/ds4) |
 | — DGX Spark port | [`Entrpi/ds4-on-spark`](https://github.com/Entrpi/ds4-on-spark) |
 
@@ -202,7 +202,7 @@ driver 595.71.05, CUDA 13.3, Linux 6.17.
 |---|---|
 | Engine | [`Baekpica/ds4`](https://github.com/Baekpica/ds4/tree/feature/exaone-model-loader) |
 | Branch | `feature/exaone-model-loader` |
-| Commit | `920427ac124078af021a0736792d2115b1d00bc2` |
+| Commit | `d35f0dd60af73c22dbd056fdad2eb616781fa6bd` |
 | Weights | [`Baekpica/K-EXAONE-236B-A23B-Mixed-Quant-GGUF`](https://huggingface.co/Baekpica/K-EXAONE-236B-A23B-Mixed-Quant-GGUF), variant **v1** |
 | Converter / reports | [`Baekpica/k-exaone-mixed-ds4`](https://github.com/Baekpica/k-exaone-mixed-ds4) |
 
@@ -238,7 +238,7 @@ the single most common way to get wrong kernel results here.
 ```bash
 git clone https://github.com/Baekpica/ds4
 cd ds4
-git checkout 920427ac124078af021a0736792d2115b1d00bc2
+git checkout d35f0dd60af73c22dbd056fdad2eb616781fa6bd
 make cuda-spark
 ```
 
@@ -352,42 +352,48 @@ Raw per-request records ship in the converter repository.
 
 | Prompt tokens | Prefill t/s | Decode t/s | Time to first token |
 |---:|---:|---:|---:|
-| 1 451 | 53.0 | 10.51 | 27.4 s |
-| 3 941 | 51.6 | 9.05 | 76.4 s |
-| 8 222 | 47.9 | 7.38 | 171.6 s |
-| 16 376 | 42.3 | 5.42 | 387.1 s |
+| 697 | 51.8 | 10.87 | 13.5 s |
+| 1 896 | 52.8 | 10.17 | 35.9 s |
+| 8 087 | 47.3 | **10.03** | 171.0 s |
+| 33 343 | 32.2 | **8.73** | 1 035 s |
 
-Both curves are clean enough to fit and extrapolate.
+Decode barely falls with depth any more.  The engine's flash-decode split
+(2026-08-08) rebuilt the deep-context decode path: the depth term dropped from
+5.88 to 0.61 µs per context position, so a 32K-deep session decodes at 8.7 t/s
+where it managed 3.5 before.  An earlier version of this card said the decode
+attention path ran at ~3 % of memory bandwidth; that headroom is now spent.
 
-**Decode cost is linear in context depth:**
-
-```text
-ms per token = 86.6 + 0.00597 × context_tokens      (residuals < 0.4 ms)
-```
-
-**Prefill cost is quadratic in prompt length**, because the marginal cost of the
-next 2048 tokens grows linearly with the depth they start at:
+**Decode cost is linear in context depth, and nearly flat:**
 
 ```text
-seconds per 2048-token chunk = 37.5 + 0.00145 × depth_tokens   (16 points, residuals < 0.25 s)
+ms per token = 94.5 + 0.00061 × context_tokens      (4 cells, residuals < 3 ms)
 ```
 
-Which gives, for depths beyond what was measured directly:
+**Prefill cost is quadratic in prompt length** and is now the one wall left:
 
-| Context | Marginal prefill t/s | Cold prefill of a full prompt | Decode t/s |
-|---:|---:|---:|---:|
-| 8 192 | 41.5 | 2.7 min | 7.4 (measured) |
-| 32 768 | 24.1 | 16 min | 3.5 |
-| 65 536 | 15.5 | 45 min | 2.1 |
-| 131 072 | 9.0 | 2.3 h | 1.2 |
-| 262 144 | 4.9 | 8.0 h | 0.6 |
+```text
+TTFT seconds = 0.0180 × N + 3.92e-7 × N²            (residuals < 0.7 s)
+```
+
+Extrapolating decode beyond the measured 33K (prefill from the same fit):
+
+| Context | Cold prefill of a full prompt | Decode t/s |
+|---:|---:|---:|
+| 8 192 | 2.6 min (measured) | 10.0 (measured) |
+| 32 768 | 17 min (measured) | 8.7 (measured) |
+| 65 536 | 47 min | 7.4 |
+| 131 072 | 2.3 h | 5.7 |
+| 262 144 | 8.8 h | 3.9 |
 
 ### What that means in practice
 
-The 262 144-token context **fits, is allocated, and is resident** — that is a
-memory result and it holds. It is not a throughput result. A cold 256K prompt
-would take hours to prefill on this hardware, and decode at that depth runs
-below 1 token/s. **Useful working depths on one GB10 today are roughly 2K–32K.**
+The 262 144-token context **fits, is allocated, and is resident**, and decode
+now stays useful an order of magnitude deeper than it used to — 8.7 t/s
+measured at 33K, ~5.7 t/s extrapolated at 128K. What has not moved is the cost
+of getting there cold: prefill is quadratic, a 33K prompt takes 17 minutes and
+a full 256K one would take ~9 hours. **The working-depth limit on one GB10 is
+now set by how long a cold prefill you will tolerate — not by decode.**
+Warm continuations skip it (below).
 
 **Multi-turn chat reuses the prefix; a cold prompt does not.** A continuation
 resumes at the point where it diverges from what the session already holds, so
@@ -415,41 +421,52 @@ than a tunable: the ring is `window + prefill chunk` wide, so a divergence
 further back than about 2 000 tokens falls back to a cold prefill. Typical chat
 divergence is one assistant turn, well inside it. Requires ds4 at the commit
 pinned above.
-Concurrency, however, does **not** help today. With `--batched-session 8` and
-short prompts so prefill cannot interfere, aggregate decode throughput is flat:
+**Concurrency now helps.** ds4's cross-session row batching (2026-08-08) runs
+concurrent decode steps through one pass — the weight-bound stages are read
+once for all streams — so aggregate throughput rises with load instead of
+staying flat.  Steady-state aggregate decode, `--batched-session 8`, short
+prompts, all streams decoding:
 
-| Concurrent streams | Summed decode t/s | Per stream |
-|---:|---:|---:|
-| 1 | 11.12 | 11.12 |
-| 2 | 9.80 | ~4.9 |
-| 4 | 10.03 | ~2.5 |
-| 8 | 10.80 | ~1.35 |
+| Concurrent streams | Summed decode t/s | Per stream | before row batching |
+|---:|---:|---:|---:|
+| 1 | 11.5 | 11.5 | 11.1 |
+| 2 | 14.8 | ~7.4 | 9.8 |
+| 4 | 16.3 | ~4.1 | 10.0 |
+| 8 | **18.5** | ~2.3 | 10.8 |
 
-Some of that is inherent — in a top-8-of-128 MoE, concurrent tokens route to
-largely disjoint experts, so routed-expert weight reads do not amortise across
-a batch. The shared components should still amortise and do not appear to.
-With **cold** prompts it is worse than flat: prefill is serialised across slots,
-so `N` concurrent long requests behave like `N` sequential ones and wall
-throughput *falls* (3.18 t/s at one stream to 2.01 t/s at eight).
+An operator serving several users sees ~15–18 tok/s of total output; a single
+user still sees the single-stream rate above.  The remaining per-row floor is
+mostly the routed experts — concurrent tokens route to largely disjoint
+top-8-of-128 sets, so that read genuinely cannot amortise — plus the per-row
+attention, which is per-session by construction.
 
-Batching itself is free — at concurrency 1 the batched server matches the plain
-one (10.39 vs 10.51 t/s at 2K, 7.37 vs 7.38 at 8K) — so `--batched-session` is
-worth using for fairness and slot residency, just not for throughput.
+A prefill no longer blocks the batch either: a pending prefill quantum rides
+the decode batch's weight sweep (`+prefill` in the batch log), so admitting a
+new long prompt costs the running streams far less than alternating whole
+passes did.
+
+One contract changed with row batching: **greedy output across batch widths is
+not bit-stable at near-ties**.  A request decoded alongside seven others can
+pick a different token than the same request alone where the top-2 margin is
+tiny, deterministically per batch composition.  Sequential (width-1) decode is
+unchanged, and the same batch always reproduces the same output.
 
 ### Where the time goes
 
 The 12 full-attention layers hold **49 152 bytes of KV per context position**
-(GQA, 8 KV heads × 128 dims, K and V, f16). Decode adds **5.97 µs per context
-position**, which is an effective **8.2 GB/s** on a part with roughly 273 GB/s
-of memory bandwidth — about **3 %**. The depth-dependent part of decode is
-therefore not bandwidth-bound. The `exaone-moe` GQA decode attention path is the
-limiter, and it is the obvious first optimisation target.
+(GQA, 8 KV heads × 128 dims, K and V, f16). Decode adds **0.61 µs per context
+position** — an effective ~81 GB/s of KV read against roughly 273 GB/s of
+device bandwidth. An earlier engine paid 5.97 µs here (~3 % of bandwidth,
+one attention block per head); the flash-decode split closed most of that,
+and what remains splits between the depth-independent floor (~94 ms/token,
+streaming the active weights, near the roofline) and the last ~3× of the
+attention read.
 
-For scale: ds4's tuned MLA path on DeepSeek V4 Flash reaches 825 t/s prefill and
-18 t/s decode on this same GB10 (`speed-bench/gb10.csv` in the engine repo).
-That model has far fewer active parameters, so the absolute numbers are not
-comparable — but the *shape* is. MLA prefill is nearly flat with depth
-(825 → 823 t/s from 2K to 64K) where `exaone-moe` roughly halves every 4×.
+Prefill keeps the one-block-per-(token, head) attention kernel and its
+quadratic term is now the dominant cost of deep contexts. For scale: ds4's
+tuned MLA path on DeepSeek V4 Flash reaches 825 t/s prefill on this same GB10
+and is nearly flat with depth, where `exaone-moe` prefill roughly halves every
+4× — that gap is the open kernel problem, not decode.
 
 ### OpenAI-compatible API
 
@@ -496,39 +513,34 @@ model, no second weight copy. It is **opt-in and off by default**:
   speculation for the rest of the session when measured MTP work runs more than
   3 % slower. `DS4_EXAONE_MTP_NO_QUENCH=1` defeats it, for measurement only.
 
-**It loses at short context and reaches break-even at long context.** Measured
-with the quench defeated, so the whole generation is speculative:
+**It is close to a wash now, and still not a win.** Measured with the quench
+defeated so the whole generation is speculative, on the engine's current
+kernels (the two-row verify rides the same aligned-dispatch, small-batch and
+flash-decode tiers as everything else):
 
-| Context | Draft acceptance | Cycle | MTP ms/token | Plain ms/token | vs plain |
-|---:|---:|---:|---:|---:|---:|
-| 1 451 | 69.3 % | 204.1 ms | 120.5 | 95.6 | +26 % |
-| 7 924 | 44.3 % | 241.7 ms | 167.5 | 133.7 | +25 % |
-| 32 995 | 34.0 % | 390.3 ms | 291.2 | 281.2 | **+4 %** |
+| Context | Draft acceptance | MTP ms/token | Plain ms/token | vs plain |
+|---:|---:|---:|---:|---:|
+| 1 387 | 36.6 % | 108.8 | 98.3 | +11 % |
+| 7 752 | 60.8 % | 102.5 | 99.7 | **+2.8 %** |
+| 33 914 | 37.0 % | 142.8 | 114.5 | +25 % |
 
-The mechanism is a single ratio. A cycle runs one draft pass (~13 ms, roughly
-constant) plus one **two-row** target verify pass. Write **k** for the cost of
-that two-row pass relative to an ordinary one-row decode, and **a** for draft
-acceptance; a cycle commits `1 + a` tokens, so speculation wins exactly when
+The mechanism is a single ratio: a cycle runs one draft pass plus one
+**two-row** target verify pass; with **k** the verify's cost relative to a
+one-row decode and **a** the acceptance, a cycle commits `1 + a` tokens and
+wins exactly when `k < 1 + a`.  An earlier engine paid k ≈ 2 at shallow depth
+because its two-row pass re-read the weights per row; that k is now near its
+floor, which moved MTP from a 26–50 % loss to the table above.  What remains
+is acceptance: at the 3 % quench threshold the 8K row is already a wash, and
+five to ten more points of acceptance — a warmed MTP ring instead of a cold
+128-row one, or corpus luck — is the difference between off and on.
 
-```text
-k < 1 + a
-```
+Acceptance numbers are a property of the text (they moved 20 points between
+corpus slices in these very measurements); compare k across runs, not
+acceptance.
 
-Measured, k falls with depth — 2.06, 1.76, **1.36** — because the KV read the
-two rows share amortises as the context grows, while acceptance falls — 69.3 %,
-44.3 %, 34.0 % — because the MTP block's private KV ring is only 128 rows and
-starts cold. At 32 995 tokens the two sides are 1.36 against 1.340: break-even
-to within measurement noise, and still improving with depth.
-
-So `k` is the lever, not draft quality. An ideal two-row pass would share the
-weight streaming between its rows and cost `k ≈ 1.05`, at which point even 34 %
-acceptance turns into roughly a 25 % speedup. That k is 1.36 rather than 1.05
-is the same finding as the decode-attention result above: this path is bound by
-per-row cost, not by bandwidth.
-
-**Keep MTP off for serving today** — it is a loss below ~32K and a wash above.
-It becomes worth enabling if either the two-row verify pass gets cheaper or the
-MTP KV is warmed from the prompt instead of starting cold.
+**MTP stays off by default.** The auto-quench makes `--exaone-mtp` safe to
+try on workloads where drafts land often; nothing here changes greedy output
+either way.
 
 ## Measured quality
 
@@ -568,23 +580,28 @@ reference's own scores.
 - Evaluation is a 32-prompt fixture set plus the token-fidelity comparison
   above, not a full benchmark suite. Raw results, including the failures, ship
   in the converter repository.
-- **256K is a memory result, not a throughput result.** The context is allocated
-  and resident, but a cold prompt at that depth takes hours to prefill and
-  decodes below 1 token/s. Plan for 2K–32K of working context on one GB10.
-- **Prefill is quadratic and decode is linear in context depth**, both steeper
-  than ds4's MLA models on the same hardware. The headroom is specifically in
-  the *depth-dependent* half: the decode attention path reads KV at only ~3 % of
-  the device's memory bandwidth. The depth-independent half — streaming the
-  active weights — is already near the roofline, so this is not a claim that
-  decode as a whole is 30× off.
+- **256K remains gated by cold prefill, not decode.** Decode now holds 8.7 t/s
+  at a measured 33K and ~4 t/s extrapolated at the full context, but a cold
+  256K prefill still takes ~9 hours. Deep contexts are practical exactly when
+  they are reached warm — through prefix reuse — rather than cold.
+- **Prefill is quadratic in context depth and is the one wall left.** The
+  decode-side headroom an earlier version of this card described is spent: the
+  flash-decode split brought the depth term from 5.88 to 0.61 µs per position.
+  The prefill attention kernel keeps the exact one-block form; a tiled variant
+  measured a wash and a tensor-core revision is the known next step.
 - **The MTP block only runs under ds4**, on the pinned branch and commit above.
   Under llama.cpp it is inert. There is no third runtime that executes it.
-- **MTP is a loss below ~32K of context and a wash above it**, so it ships off
-  by default and auto-quenches when enabled. The limit is the cost of the
-  two-row verify pass, not draft quality.
+- **MTP is a mild loss (3–25 % by depth and corpus)**, so it ships off by
+  default and auto-quenches when enabled. Its verify cost is now near its
+  floor; the remaining limit is draft acceptance.
 - **MTP does not run under `--batched-session`.** ds4 disables speculative
   decoding whenever native session batching is active, so concurrency > 1 is
   plain decode regardless of the MTP flags.
+- **Greedy output across batch widths is not bit-stable at near-ties.** A
+  request decoded alongside others can pick a different token than the same
+  request alone where the top-2 margin is tiny; the same batch composition
+  always reproduces the same output, and width-1 decode is unchanged. This is
+  the standard batched-inference contract.
 - **Multi-turn reuse reaches back about 2 000 tokens.** The sliding-window KV
   ring is `window + prefill chunk` wide, and a resumed prefill needs the window
   that preceded its restart point. A conversation that diverges further back

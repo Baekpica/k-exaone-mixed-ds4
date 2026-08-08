@@ -78,10 +78,14 @@ tensor table before anything is written.
   validated for streaming, thinking-mode `reasoning_content` separation, and
   cross-request isolation. A multi-turn continuation resumes at the point it
   diverges from the live session, so turn 2 of a 7K-token chat costs **5.9 s**
-  rather than 143.9 s. MTP runs, but is **slower than plain decode on this
-  hardware**, so it ships off by default with an automatic loss quench.
-- **Pin ds4 at or after `920427a`.** Earlier commits sized the `exaone-moe`
-  sliding KV ring to the attention window alone while prefill ran 2 048-token
+  rather than 143.9 s. Flash-decode keeps deep decode fast (**8.7 t/s at a
+  measured 33K**, ~4 t/s extrapolated at full context), and cross-session row
+  batching lifts concurrent serving to **18.5 t/s aggregate at 8 streams**.
+  MTP runs, is a mild loss (3–25 % by depth), and ships off by default with an
+  automatic loss quench.
+- **Pin ds4 at or after `d35f0dd`** (the serving-optimization round; `920427a`
+  is the minimum for correct long prompts). Older than `920427a`, the
+  `exaone-moe` sliding KV ring was sized to the attention window alone while prefill ran 2 048-token
   chunks, so all but the last row of each chunk attended over overwritten
   slots. 36 of 48 layers are sliding, and long-prompt comprehension was badly
   degraded as a result. Short prompts were unaffected, which is why the API
