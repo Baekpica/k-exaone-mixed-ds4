@@ -21,7 +21,7 @@ the parameters.
 | BF16 source | 441.63 GiB |
 | **v1 artifact** | **85.56 GiB** (5.16×) |
 | Context served on one GB10 | **262 144 tokens** |
-| Resident at 256K, measured | **103.62 GiB / 121.6 GiB** |
+| Resident at 256K, measured | **103.95 GiB / 121.6 GiB** |
 
 **Artifacts:** [`Baekpica/K-EXAONE-236B-A23B-Mixed-Quant-GGUF`](https://huggingface.co/Baekpica/K-EXAONE-236B-A23B-Mixed-Quant-GGUF) ·
 **Engine:** [`Baekpica/ds4`](https://github.com/Baekpica/ds4/tree/feature/exaone-model-loader)
@@ -73,13 +73,20 @@ tensor table before anything is written.
   native session batching, and a target-verified MTP path through `blk.48`.
   The CPU reference forward still validates against llama.cpp on the same model:
   same greedy token, `attn_norm` exact to four decimals.
-- **DGX Spark** — measured on GB10 / `sm_121`. The 256K server boots in ~3 min
-  45 s and sits at **103.62 GiB of 121.6 GiB** resident; the OpenAI-compatible
-  API is validated for streaming, thinking-mode `reasoning_content` separation,
-  and cross-request isolation. MTP runs and is exactly greedy-identical, but is
-  **slower than plain decode on this hardware**, so it ships off by default with
-  an automatic loss quench. See `reports/MODEL_CARD.md` and
-  `reports/DGX-SPARK-HANDOFF-2026-08-07-1626-KST.md`.
+- **DGX Spark** — measured on GB10 / `sm_121`. The 256K server boots in ~4 min
+  and sits at **103.95 GiB of 121.6 GiB** resident; the OpenAI-compatible API is
+  validated for streaming, thinking-mode `reasoning_content` separation, and
+  cross-request isolation. A multi-turn continuation resumes at the point it
+  diverges from the live session, so turn 2 of a 7K-token chat costs **5.9 s**
+  rather than 143.9 s. MTP runs, but is **slower than plain decode on this
+  hardware**, so it ships off by default with an automatic loss quench.
+- **Pin ds4 at or after `920427a`.** Earlier commits sized the `exaone-moe`
+  sliding KV ring to the attention window alone while prefill ran 2 048-token
+  chunks, so all but the last row of each chunk attended over overwritten
+  slots. 36 of 48 layers are sliding, and long-prompt comprehension was badly
+  degraded as a result. Short prompts were unaffected, which is why the API
+  checks passed throughout. See `reports/MODEL_CARD.md` and
+  `reports/DGX-SPARK-ITEMS-4-6-2026-08-07.md`.
 
 ## Acknowledgements
 

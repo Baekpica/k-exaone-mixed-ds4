@@ -24,8 +24,8 @@ of bits each tensor is stored in — assigned by *what the tensor does*, not by 
 global bit budget.
 
 The 250 B-class weight class normally implies a multi-GPU host. This artifact
-fits **85.56 GiB** of weights and **12.02 GiB** of 256K KV cache into a single
-GB10's unified memory, measured at **103.62 GiB of 121.6 GiB resident** and
+fits **85.56 GiB** of weights and **12.30 GiB** of 256K KV cache into a single
+GB10's unified memory, measured at **103.95 GiB of 121.6 GiB resident** and
 serving over an OpenAI-compatible API. That is the result this repository
 exists to demonstrate.
 
@@ -37,7 +37,7 @@ exists to demonstrate.
 | BF16 size | 441.63 GiB |
 | **This artifact (v1)** | **85.56 GiB** — 5.16× smaller |
 | Context served on one GB10 | **262 144 tokens** |
-| Resident at 256K, measured | **103.62 GiB / 121.6 GiB** |
+| Resident at 256K, measured | **103.95 GiB / 121.6 GiB** |
 
 Mixed-precision GGUF builds of `LGAI-EXAONE/K-EXAONE-236B-A23B`, quantized per
 module role rather than uniformly, keeping the parts that matter most at 8 bit.
@@ -112,7 +112,7 @@ Composition: `calibration.composition.json`.
 | BF16 GGUF sha256 | `73be2da8653976df036bf9b6466b011f86cb10f78bab30a47025638ec999d3f8` |
 | llama.cpp (quantizer) | [`ggml-org/llama.cpp`](https://github.com/ggml-org/llama.cpp) @ `6a32c29a746a2e44de463de647f9f6661eb5086b` (build `b10295`) |
 | Converter | [`Baekpica/k-exaone-mixed-ds4`](https://github.com/Baekpica/k-exaone-mixed-ds4) |
-| Serving engine (measured below) | [`Baekpica/ds4`](https://github.com/Baekpica/ds4/tree/feature/exaone-model-loader) @ `8c45d39956f0edcc88834d9ec93dd026ff32f69d` |
+| Serving engine (measured below) | [`Baekpica/ds4`](https://github.com/Baekpica/ds4/tree/feature/exaone-model-loader) @ `920427ac124078af021a0736792d2115b1d00bc2` |
 | — upstream engine | [`antirez/ds4`](https://github.com/antirez/ds4) |
 | — DGX Spark port | [`Entrpi/ds4-on-spark`](https://github.com/Entrpi/ds4-on-spark) |
 
@@ -134,35 +134,19 @@ the base model's embedding and LM head.
 
 ## How to run it
 
-Two runtimes serve these files, and they are not interchangeable.
+Two runtimes serve these files, and they are not interchangeable. **ds4 is the
+one this artifact was sized for** and the only one measured here at full
+context; llama.cpp runs the same file unmodified, but leaves the MTP block on
+the floor.
 
-| | **llama.cpp** | **ds4** (`Baekpica/ds4`, `feature/exaone-model-loader`) |
+| | **ds4** (`Baekpica/ds4`, `feature/exaone-model-loader`) | **llama.cpp** |
 |---|---|---|
 | Runs the artifact | yes, unmodified | yes, unmodified |
-| MTP block `blk.48` | **ignored** — stored, never executed | **executed**, target-verified speculative decoding |
-| 262 144-token context on one 128 GB device | not measured here | **measured — 103.62 GiB resident** |
-| Server API | llama.cpp HTTP API | OpenAI / Responses / Anthropic-compatible |
-| Validated on GB10 / `sm_121` | no | **yes** — see below |
-
-### llama.cpp
-
-```bash
-llama-server -m K-EXAONE-236B-A23B-MXQ-IQ2XXS-Q3K-Q4Edge-Q8Dense-MTPQ8-v1-00001-of-00003.gguf \
-  -ngl 99 -c 8192
-```
-
-Point it at the **first** shard; it loads the other two automatically. A
-mixed-quant GGUF needs no special runtime: GGUF stores a type per tensor and
-ggml dispatches per tensor, which is how `Q4_K_M` — itself a mixture of Q4_K,
-Q6_K and Q8_0 — already works. This recipe just assigns that mixture more
-aggressively, and `llama-quantize` is what produced the file.
-
-Measured, not assumed: the pilot artifact loaded in `llama-server` on 4 × RTX
-PRO 6000 in **10.2 s** and generated 384 tokens of Korean at **78.1 tok/s** with
-a broken-jamo ratio of **0.000**.
-
-The caveat is the MTP block: llama.cpp **ignores** those tensors. They are
-preserved in the artifact, not executed.
+| MTP block `blk.48` | **executed**, target-verified speculative decoding | **ignored** — stored, never executed |
+| 262 144-token context on one 128 GB device | **measured — 103.95 GiB resident** | not measured here |
+| Multi-turn prefix reuse | **yes** — a continuation resumes at the divergence point | not measured here |
+| Server API | OpenAI / Responses / Anthropic-compatible | llama.cpp HTTP API |
+| Validated on GB10 / `sm_121` | **yes** — see below | no |
 
 ### ds4 — the engine this artifact was sized for
 
@@ -183,6 +167,32 @@ ds4 was an MLA-only engine; K-EXAONE is plain GQA, so that attention path had to
 be written. Neither `antirez/ds4` nor `Entrpi/ds4-on-spark` serves this model as
 shipped — use the branch above.
 
+The full serving walkthrough, with the measured numbers, is the next section.
+
+### llama.cpp
+
+The artifact is a plain GGUF, so it also runs unmodified on stock llama.cpp —
+useful for a quick check, or on hardware where ds4 has no backend.
+
+```bash
+llama-server -m K-EXAONE-236B-A23B-MXQ-IQ2XXS-Q3K-Q4Edge-Q8Dense-MTPQ8-v1-00001-of-00003.gguf \
+  -ngl 99 -c 8192
+```
+
+Point it at the **first** shard; it loads the other two automatically. A
+mixed-quant GGUF needs no special runtime: GGUF stores a type per tensor and
+ggml dispatches per tensor, which is how `Q4_K_M` — itself a mixture of Q4_K,
+Q6_K and Q8_0 — already works. This recipe just assigns that mixture more
+aggressively, and `llama-quantize` is what produced the file.
+
+Measured, not assumed: the pilot artifact loaded in `llama-server` on 4 × RTX
+PRO 6000 in **10.2 s** and generated 384 tokens of Korean at **78.1 tok/s** with
+a broken-jamo ratio of **0.000**.
+
+Two caveats. llama.cpp **ignores** the MTP block — those tensors are preserved
+in the artifact, not executed. And nothing on this page about 256K context,
+resident memory or prefix reuse was measured on it; those are ds4 numbers.
+
 ## Serving on DGX Spark (GB10 / `sm_121`) with ds4
 
 Measured on a DGX Spark: NVIDIA GB10, `sm_121`, **121.6 GiB unified memory**,
@@ -192,9 +202,26 @@ driver 595.71.05, CUDA 13.3, Linux 6.17.
 |---|---|
 | Engine | [`Baekpica/ds4`](https://github.com/Baekpica/ds4/tree/feature/exaone-model-loader) |
 | Branch | `feature/exaone-model-loader` |
-| Commit | `8c45d39956f0edcc88834d9ec93dd026ff32f69d` |
+| Commit | `920427ac124078af021a0736792d2115b1d00bc2` |
 | Weights | [`Baekpica/K-EXAONE-236B-A23B-Mixed-Quant-GGUF`](https://huggingface.co/Baekpica/K-EXAONE-236B-A23B-Mixed-Quant-GGUF), variant **v1** |
 | Converter / reports | [`Baekpica/k-exaone-mixed-ds4`](https://github.com/Baekpica/k-exaone-mixed-ds4) |
+
+> **Pin at or after `920427a`, and do not use an earlier commit for long
+> prompts.** Before it, the `exaone-moe` sliding layers allocated a KV ring
+> exactly the width of the attention window while prefill ran 2 048-token
+> chunks. A chunk writes every row's KV before any row attends, so the ring was
+> left holding only the chunk's last 128 positions and all but the final row of
+> each chunk attended over slots a later position had overwritten. 36 of the 48
+> layers are sliding, so long-prompt comprehension was badly degraded — asked to
+> summarise 7 000 tokens of Manzoni's Italian prose, the earlier build answered
+> about "Logos" and, on a second passage, about pasta sauce. Short prompts
+> (under ~128 tokens) were never affected, which is why the API validation
+> suite passed throughout. The same defect gave the two-row MTP verify one stale
+> key past depth 128, so the "committed only on an exact match against the
+> target's own argmax" guarantee did not hold there either.
+>
+> This is a serving-engine defect, not an artifact defect: the GGUF files are
+> unchanged and the quality numbers below were measured on llama.cpp, not ds4.
 
 **1 — get the weights** (85.56 GiB across three shards):
 
@@ -211,7 +238,7 @@ the single most common way to get wrong kernel results here.
 ```bash
 git clone https://github.com/Baekpica/ds4
 cd ds4
-git checkout 8c45d39956f0edcc88834d9ec93dd026ff32f69d
+git checkout 920427ac124078af021a0736792d2115b1d00bc2
 make cuda-spark
 ```
 
@@ -276,10 +303,10 @@ additions — the mapping's pages are handed over, not duplicated:
 | Aligned CUDA artifacts (repacked at load) | 39.09 GiB — 78 `IQ2` tensors 30.16 GiB + 345 `Q8` tensors 8.93 GiB |
 | Raw expert cache payload | 45.39 GiB |
 | **Weights resident on device** | **84.48 GiB** |
-| KV cache, 262 144 tokens (12 full + 36 sliding layers) | 12.02 GiB |
+| KV cache, 262 144 tokens (12 full + 36 sliding layers) | 12.30 GiB |
 | Graph workspace | 1.60 GiB |
 | Context buffers (`prefill_chunk` 2048) | 104.22 MiB |
-| **`nvtop` GPU Mem, idle and ready at 256K** | **103.62 GiB / 121.6 GiB** |
+| **`nvtop` GPU Mem, idle and ready at 256K** | **103.95 GiB / 121.6 GiB** |
 
 That leaves roughly 18 GiB of headroom on a 121.6 GiB machine with the largest
 context the model supports already allocated.
@@ -301,7 +328,7 @@ the same physical pool and the usual tools disagree about who owns it:
   footprint is CUDA-owned rather than process-anonymous.
 - A small-context run is not comparable to a 256K run. The same build with two
   127-token sessions peaks near **90.17 GiB**; the 256K server sits at
-  **103.62 GiB**. The difference is almost entirely the 12.02 GiB 256K KV.
+  **103.95 GiB**. The difference is almost entirely the 12.30 GiB 256K KV.
 - **After a clean exit the driver keeps the memory, and that is fine.** With
   595.71.05, `free` reports roughly 14 GiB available after `ds4-server` exits,
   and it stays there: the whole of `/proc/meminfo` accounts for only ~17.7 GiB
@@ -362,27 +389,32 @@ memory result and it holds. It is not a throughput result. A cold 256K prompt
 would take hours to prefill on this hardware, and decode at that depth runs
 below 1 token/s. **Useful working depths on one GB10 today are roughly 2K–32K.**
 
-**Multi-turn chat re-pays the whole prefill.** This was measured, not assumed,
-and it is the most important thing to know before building on this:
+**Multi-turn chat reuses the prefix; a cold prompt does not.** A continuation
+resumes at the point where it diverges from what the session already holds, so
+only the tail is prefilled:
 
-| Turn | Prompt tokens | Time to first token |
-|---|---:|---:|
-| 1 — cold, ~7K document + question | 6 978 | 166.2 s |
-| 2 — same history + the assistant's own reply + a follow-up | 7 086 | **143.9 s** |
-| 3 — a different document, cold | 6 725 | 136.5 s |
+| Turn | Prompt tokens | Time to first token | Reused |
+|---|---:|---:|---:|
+| 1 — cold, ~7K document + question | 6 978 | 165.7 s | 0 |
+| 2 — same history + the assistant's own reply + a follow-up | 7 083 | **5.9 s** | **6 992** |
+| 3 — a different document, cold | 6 725 | 137.0 s | 0 |
 
-Turn 2 is a normal continuation and costs the same as a cold prompt. The server
-log shows why: the live checkpoint held 7 074 tokens, the new prompt shared
-**6 984** of them, and all of it was discarded. ds4 reuses session KV only when
-the new prompt contains the *entire* checkpoint
-(`prompt->len >= checkpoint.len && ds4_tokens_starts_with(...)`), and the
-checkpoint includes the tokens the model itself generated. Replaying the
-assistant's reply as text re-tokenises a few of those differently, the
-all-or-nothing test fails, and 98.6 % of a valid prefix is thrown away.
+Turn 2 is **24×** faster than the same request without reuse, and turns 1 and 3
+are unchanged — an unrelated prompt is not falsely matched onto a live session.
 
-Plan for it: at these prefill rates a 7K-token chat turn costs about 2.5
-minutes each time. Keep conversational context small, or keep the transcript
-short enough that re-prefilling is affordable.
+This is worth spelling out because it is the case an all-or-nothing prefix test
+gets wrong, and ds4 used to have one. A chat client replays the assistant's
+previous reply as *text*, and re-tokenising it does not reproduce the token IDs
+the model sampled. The old test required the new prompt to contain the entire
+checkpoint, so a continuation sharing 6 984 of 7 086 tokens — 98.6 % — failed it
+and re-prefilled everything, at 143.9 s per turn. It now resumes at the
+divergence point instead.
+
+How far back that can reach is a property of the sliding-window KV ring rather
+than a tunable: the ring is `window + prefill chunk` wide, so a divergence
+further back than about 2 000 tokens falls back to a cold prefill. Typical chat
+divergence is one assistant turn, well inside it. Requires ds4 at the commit
+pinned above.
 Concurrency, however, does **not** help today. With `--batched-session 8` and
 short prompts so prefill cannot interfere, aggregate decode throughput is flat:
 
@@ -504,6 +536,9 @@ MTP KV is warmed from the prompt instead of starting cold.
 `max_tokens` 768, compared against the same fixtures run on the official
 **`Q8_0`** build (234.7 GiB) as reference.
 
+Both sides were run on **llama.cpp**, on 4 × RTX PRO 6000 (`sm_120`) — this
+table measures the artifact, not the ds4 serving path.
+
 | | pilot `Q2_K` · 87.84 GiB | **v1 `IQ2_XXS`+`Q3_K` · 85.56 GiB** |
 |---|--:|--:|
 | word-agreement vs `Q8_0`, mean | 0.139 | **0.183** |
@@ -537,9 +572,11 @@ reference's own scores.
   and resident, but a cold prompt at that depth takes hours to prefill and
   decodes below 1 token/s. Plan for 2K–32K of working context on one GB10.
 - **Prefill is quadratic and decode is linear in context depth**, both steeper
-  than ds4's MLA models on the same hardware. The measured decode attention
-  path reaches only ~3 % of the device's memory bandwidth, so this is an
-  engine-side limit with real headroom, not a property of the artifact.
+  than ds4's MLA models on the same hardware. The headroom is specifically in
+  the *depth-dependent* half: the decode attention path reads KV at only ~3 % of
+  the device's memory bandwidth. The depth-independent half — streaming the
+  active weights — is already near the roofline, so this is not a claim that
+  decode as a whole is 30× off.
 - **The MTP block only runs under ds4**, on the pinned branch and commit above.
   Under llama.cpp it is inert. There is no third runtime that executes it.
 - **MTP is a loss below ~32K of context and a wash above it**, so it ships off
@@ -548,6 +585,12 @@ reference's own scores.
 - **MTP does not run under `--batched-session`.** ds4 disables speculative
   decoding whenever native session batching is active, so concurrency > 1 is
   plain decode regardless of the MTP flags.
+- **Multi-turn reuse reaches back about 2 000 tokens.** The sliding-window KV
+  ring is `window + prefill chunk` wide, and a resumed prefill needs the window
+  that preceded its restart point. A conversation that diverges further back
+  than that — an edited early message, a re-ordered history — falls back to a
+  cold prefill. One assistant turn of divergence, the normal case, is well
+  inside it.
 - **Host memory accounting is not usable as a readiness signal.** Driver
   595.71.05 retains the unified allocation after a clean exit and does not
   return it to the kernel. Gate a restart on "no `ds4-server` process", not on
